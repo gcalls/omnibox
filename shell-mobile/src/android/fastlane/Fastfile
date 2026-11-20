@@ -36,6 +36,15 @@ def firebase_service_account
   secure_file("FIREBASE_SA_PATH", "firebase-service-account.json")
 end
 
+# File build được Gradle đặt tên {branch}-{versionName}.{apk|aab} (xem app/build.gradle).
+# Lấy file mới nhất trong thư mục output của bản release.
+def release_artifact(ext)
+  kind = ext == "aab" ? "bundle" : "apk"
+  files = Dir[File.expand_path("../app/build/outputs/#{kind}/release/*.#{ext}", FASTLANE_DIR)]
+  UI.user_error!("Không tìm thấy file .#{ext} – hãy build trước") if files.empty?
+  files.max_by { |f| File.mtime(f) }
+end
+
 platform :android do
 
   desc "Build Android"
@@ -84,7 +93,7 @@ platform :android do
       groups: ENV["FIREBASE_TESTER_GROUPS"],
       release_notes_file: File.join(FASTLANE_DIR, 'metadata/android/release_note.txt'),
       android_artifact_type: "APK",
-      android_artifact_path: File.expand_path('../app/build/outputs/apk/release/app-release.apk', FASTLANE_DIR),
+      android_artifact_path: release_artifact("apk"),
       debug: true,
     )
 
@@ -95,7 +104,7 @@ platform :android do
     #  skip_upload_changelogs: false,
     #   skip_upload_images: true,
     #   skip_upload_screenshots:true,
-    #   aab:	File.expand_path('../app/build/outputs/bundle/release/app-release.aab', FASTLANE_DIR),
+    #   aab:	release_artifact("aab"),
     #   )
   end
 
@@ -114,7 +123,7 @@ platform :android do
       skip_upload_changelogs: false,
       skip_upload_images: true,
       skip_upload_screenshots:true,
-      aab:	File.expand_path('../app/build/outputs/bundle/release/app-release.aab', FASTLANE_DIR),
+      aab:	release_artifact("aab"),
       )
   end
 
@@ -129,7 +138,7 @@ platform :android do
       skip_upload_changelogs: false,
       skip_upload_images: true,
       skip_upload_screenshots:true,
-      aab:	File.expand_path('../app/build/outputs/bundle/release/app-release.aab', FASTLANE_DIR),
+      aab:	release_artifact("aab"),
       )
   end
 
@@ -144,7 +153,7 @@ platform :android do
       skip_upload_changelogs: false,
       skip_upload_images: true,
       skip_upload_screenshots:true,
-      aab:	File.expand_path('../app/build/outputs/bundle/release/app-release.aab', FASTLANE_DIR),
+      aab:	release_artifact("aab"),
       )
   end
 
@@ -160,7 +169,7 @@ platform :android do
         skip_upload_changelogs: false,
         skip_upload_images: true,
         skip_upload_screenshots:true,
-        aab:	File.expand_path('../app/build/outputs/bundle/release/app-release.aab', FASTLANE_DIR),
+        aab:	release_artifact("aab"),
         )
     end
 

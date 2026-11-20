@@ -89,6 +89,26 @@ def reactNativeArchitectures() {
     return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
 }
 
+/**
+ * Tên branch cho file build: ưu tiên biến môi trường CI, sau đó `git`.
+ * Ký tự không hợp lệ cho tên file (vd. "/") đổi thành "-". Giữ đồng bộ với ios/fastlane/Fastfile.
+ */
+def buildBranchName() {
+    def branch = ["GITHUB_HEAD_REF", "GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME"]
+            .collect { System.getenv(it) }
+            .find { it }
+    if (!branch) {
+        try {
+            def proc = ["git", "rev-parse", "--abbrev-ref", "HEAD"].execute(null, rootDir)
+            proc.waitFor()
+            branch = proc.text.trim()
+        } catch (ignored) { }
+    }
+    if (!branch || branch == "HEAD") branch = "detached"
+    return branch.replaceAll(/[^A-Za-z0-9._-]+/, "-")
+}
+def artifactBaseName = { String versionName -> "${buildBranchName()}-${versionName}" }
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -165,6 +185,19 @@ android {
                         defaultConfig.versionCode * 1000 + versionCodes.get(abi)
             }
 
+            // Tên APK: {branch}-{versionName}.apk
+            output.outputFileName = "${artifactBaseName(variant.versionName)}.apk"
+        }
+
+        // Tên AAB: {branch}-{versionName}.aab (AGP không cho đặt tên bundle trực tiếp nên đổi tên sau khi build)
+        def bundleTask = tasks.findByName("bundle${variant.name.capitalize()}")
+        bundleTask?.doLast {
+            def dir = file("$buildDir/outputs/bundle/${variant.name}")
+            def target = new File(dir, "${artifactBaseName(variant.versionName)}.aab")
+            dir.listFiles()?.findAll { it.name.endsWith(".aab") && it != target }?.each { aab ->
+                target.delete()
+                aab.renameTo(target)
+            }
         }
     }
 }

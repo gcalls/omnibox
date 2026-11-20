@@ -1,8 +1,0 @@
-# CODEOWNERS – mọi thay đổi cần owner duyệt (ruleset của main bật "Require review from Code Owners").
-# TODO: thay <github-username-owner> bằng tài khoản GitHub thật (hoặc team, vd. @<org>/mobile).
-
-*                   @<github-username-owner>
-/.github/           @<github-username-owner>
-/1config.tar.gz.gpg @<github-username-owner>
-/src/android/       @<github-username-owner>
-/src/ios/           @<github-username-owner>

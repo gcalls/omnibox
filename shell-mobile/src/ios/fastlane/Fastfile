@@ -40,6 +40,22 @@ platform :ios do
     }.reject { |_, v| v.nil? || v.empty? }
   end
 
+  # Tên branch cho file build: ưu tiên biến môi trường CI, sau đó `git`.
+  # Ký tự không hợp lệ cho tên file (vd. "/") đổi thành "-". Giữ đồng bộ với android/app/build.gradle.
+  def build_branch_name
+    branch = %w[GITHUB_HEAD_REF GITHUB_REF_NAME CI_COMMIT_BRANCH BRANCH_NAME]
+               .map { |k| ENV[k].to_s }.find { |v| !v.empty? }
+    branch ||= `git rev-parse --abbrev-ref HEAD 2>/dev/null`.strip
+    branch = "detached" if branch.empty? || branch == "HEAD"
+    branch.gsub(/[^A-Za-z0-9._-]+/, "-")
+  end
+
+  # Tên file build: {branch}-{MARKETING_VERSION} (gym tự thêm đuôi .ipa)
+  def artifact_base_name
+    version = get_version_number(xcodeproj: "Gcalls.xcodeproj", target: "Gcalls")
+    "#{build_branch_name}-#{version}"
+  end
+
   def csv_env(name)
     (ENV[name] || "").split(",").map(&:strip).reject(&:empty?)
   end
@@ -70,6 +86,7 @@ platform :ios do
     increment_build_number(xcodeproj: "Gcalls.xcodeproj")
     build_app(
       scheme: 'Gcalls',
+      output_name: artifact_base_name,   # → {branch}-{version}.ipa
     )
 
   end

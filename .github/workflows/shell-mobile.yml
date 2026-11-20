@@ -1,0 +1,205 @@
+# =====================================================================================
+#  CI/CD riêng cho dự án shell-mobile trong monorepo omnibox (không dùng fastlane).
+#
+#  Chạy khi push/merge vào main hoặc test VÀ có thay đổi trong shell-mobile/:
+#    shell-mobile/src/android/**  → build Android (.apk)
+#    shell-mobile/src/ios/**      → build iOS (.ipa không ký)
+#    shell-mobile/src/** khác, shell-mobile/1config.tar.gpg → build cả hai
+#  (chi tiết: shell-mobile/scripts/ci-detect-changes.sh)
+#
+#  Tên file: {branch}-{version}.{apk|ipa}. File được đăng lên gist chung "omnibox builds".
+#  Cấu hình: main → `1config/cp.sh production`, test/khác → `1config/cp.sh internal`.
+#
+#  Secrets (Settings → Secrets and variables → Actions → Repository secrets):
+#    ONECONFIG_GPG_PASSPHRASE  passphrase giải mã shell-mobile/1config.tar.gpg
+#    GIST_TOKEN                PAT có quyền ghi gist (classic: scope "gist")
+#
+#  Dự án khác trong omnibox: tạo workflow riêng với `paths: ['<thư-mục>/**']` và dùng lại
+#  .github/scripts/publish-to-gist.sh.
+# =====================================================================================
+name: shell-mobile
+
+on:
+  push:
+    branches: [main, test]
+    paths:
+      - "shell-mobile/**"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Nền tảng cần build"
+        type: choice
+        options: [both, android, ios]
+        default: both
+
+concurrency:
+  group: shell-mobile-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CONFIG_MODE: ${{ github.ref_name == 'main' && 'production' || 'internal' }}
+
+jobs:
+  changes:
+    name: Phát hiện thay đổi
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.detect.outputs.android }}
+      ios: ${{ steps.detect.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          PLATFORM: ${{ inputs.platform }}
+        run: bash shell-mobile/scripts/ci-detect-changes.sh
+
+  android:
+    name: Android (.apk)
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: shell-mobile
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: shell-mobile/src/.node-version
+          cache: npm
+          cache-dependency-path: shell-mobile/src/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Giải mã 1config và chạy cp.sh (${{ env.CONFIG_MODE }})
+        env:
+          ONECONFIG_GPG_PASSPHRASE: ${{ secrets.ONECONFIG_GPG_PASSPHRASE }}
+        run: |
+          [ -n "$ONECONFIG_GPG_PASSPHRASE" ] || { echo "::error::Thiếu secret ONECONFIG_GPG_PASSPHRASE"; exit 1; }
+          gpg --batch --yes --quiet --pinentry-mode loopback --decrypt \
+              --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
+          bash 1config/cp.sh "$CONFIG_MODE"
+
+      - name: Cài dependency JS
+        working-directory: shell-mobile/src
+        run: npm ci --no-audit --no-fund
+
+      - name: Build APK (Gradle, không fastlane)
+        working-directory: shell-mobile/src/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p ../../dist
+          cp app/build/outputs/apk/release/*.apk ../../dist/
+          ls -la ../../dist
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: shell-mobile-android
+          path: shell-mobile/dist/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Dọn cấu hình đã giải mã
+        if: always()
+        run: |
+          [ -f 1config/cp.sh ] && bash 1config/cp.sh --clean || true
+          rm -rf 1config
+
+  ios:
+    name: iOS (.ipa không ký)
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      NO_FLIPPER: "1"
+    defaults:
+      run:
+        working-directory: shell-mobile
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Chọn Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          XC=$(ls -d /Applications/Xcode_16.2*.app 2>/dev/null | head -n1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC"; fi
+          xcodebuild -version
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: shell-mobile/src/.node-version
+          cache: npm
+          cache-dependency-path: shell-mobile/src/package-lock.json
+
+      - name: Giải mã 1config và chạy cp.sh (${{ env.CONFIG_MODE }})
+        env:
+          ONECONFIG_GPG_PASSPHRASE: ${{ secrets.ONECONFIG_GPG_PASSPHRASE }}
+        run: |
+          [ -n "$ONECONFIG_GPG_PASSPHRASE" ] || { echo "::error::Thiếu secret ONECONFIG_GPG_PASSPHRASE"; exit 1; }
+          gpg --batch --yes --quiet --pinentry-mode loopback --decrypt \
+              --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
+          bash 1config/cp.sh "$CONFIG_MODE"
+
+      - name: Cài dependency JS + CocoaPods
+        working-directory: shell-mobile/src
+        run: |
+          npm ci --no-audit --no-fund --ignore-scripts
+          npx patch-package
+          npx react-native setup-ios-permissions
+          cd ios && pod install
+
+      - name: Build IPA (xcodebuild, không fastlane)
+        run: OUT_DIR="$PWD/dist" bash scripts/ios-build-unsigned.sh
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: shell-mobile-ios
+          path: shell-mobile/dist/*.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Dọn cấu hình đã giải mã
+        if: always()
+        run: |
+          [ -f 1config/cp.sh ] && bash 1config/cp.sh --clean || true
+          rm -rf 1config
+
+  publish:
+    name: Đăng lên gist omnibox
+    needs: [android, ios]
+    if: ${{ !cancelled() && (needs.android.result == 'success' || needs.ios.result == 'success') }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: omnibox-gist
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/scripts
+
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: shell-mobile-*
+          merge-multiple: true
+          path: dist
+
+      - name: Đăng file và kiểm tra tải về qua curl
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: bash .github/scripts/publish-to-gist.sh dist/*

@@ -6,9 +6,9 @@
 
 ```text
 .
-├── 1config.tar.gz.gpg   # cấu hình + chứng chỉ build đã mã hoá (gpg AES256); bản rõ 1config/ không bao giờ commit
+├── 1config.tar.gpg      # cấu hình + chứng chỉ build đã mã hoá (gpg AES256); bản rõ 1config/ không bao giờ commit
 ├── docs/                # tài liệu dự án (SECRETS.md: danh mục secret, không chứa giá trị)
-├── scripts/
+├── scripts/           # ci-detect-changes.sh, ios-build-unsigned.sh
 └── src/                 # mã nguồn React Native
     ├── App.tsx
     ├── android/         # project Android + fastlane
@@ -36,7 +36,7 @@ Các phiên bản trên sẽ được nâng cùng đợt nâng cấp React Nativ
    ```bash
    export ONECONFIG_GPG_PASSPHRASE='<passphrase>'
    gpg --batch --yes --quiet --pinentry-mode loopback --decrypt \
-       --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gz.gpg | tar -xz
+       --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
    bash 1config/cp.sh internal           # Windows: powershell -File 1config\cp.ps1 -Mode internal
    ```
 
@@ -51,14 +51,24 @@ Các phiên bản trên sẽ được nâng cùng đợt nâng cấp React Nativ
 
 Xoá các file cấu hình đã copy vào `src/`: `bash 1config/cp.sh --clean`.
 
-## Phát hành
+## CI/CD (GitHub Actions)
 
-Việc phát hành chạy bằng GitHub Actions và fastlane:
+Workflow [`.github/workflows/shell-mobile.yml`](../.github/workflows/shell-mobile.yml) ở gốc repo omnibox, **không dùng fastlane**. Workflow chạy khi push/merge vào `main` hoặc `test` và có thay đổi trong `shell-mobile/`:
 
-- Android: lane `demo` (Firebase App Distribution + Play internal) và `production`.
-- iOS: lane `test` (TestFlight) và `release` (App Store).
+| Thay đổi | Build |
+| --- | --- |
+| `src/android/**` | Android (`.apk`, Gradle) |
+| `src/ios/**` | iOS (`.ipa` không ký, `xcodebuild`) |
+| phần còn lại của `src/**` (code dùng chung), `1config.tar.gpg` | cả hai |
+| docs, README… | không build |
 
-Mọi khoá và chứng chỉ được nạp từ bundle `1config` đã giải mã. Không ai build release thủ công trên máy cá nhân.
+- Cấu hình: `main` → `bash 1config/cp.sh production`, `test` → `bash 1config/cp.sh internal`.
+- Tên file: `{branch}-{version}.{apk|ipa}`, ví dụ `main-1.0.apk`, `main-2.5.ipa`.
+- File được đăng lên gist chung "omnibox builds"; link tải nằm trong Summary của lần chạy workflow.
+- Có thể chạy tay: Actions → shell-mobile → Run workflow.
+- Secret cần có: `ONECONFIG_GPG_PASSPHRASE`, `GIST_TOKEN` (xem [docs/SECRETS.md](docs/SECRETS.md)).
+
+Các lane fastlane (`src/android/fastlane`, `src/ios/fastlane`) vẫn giữ để phát hành lên store khi bundle `1config` có đủ keystore, chứng chỉ và service account.
 
 ## Bảo mật
 

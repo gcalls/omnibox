@@ -5,14 +5,15 @@ File này **không chứa giá trị**, chỉ ghi tên, mục đích, nơi lưu 
 Nơi lưu giá trị thật:
 
 1. **Password manager của công ty**, vault "Gcalls Mobile". Đây là nguồn gốc duy nhất, lưu cả bản sao các file bên dưới và passphrase.
-2. **Bundle `1config.tar.gz.gpg`** (gpg AES256, commit trong repo). Giải mã ra thư mục `1config/`, rồi `1config/cp.sh` copy từng file vào `src/`. Xem `1config/README.md`.
-3. **GitHub Actions**: chỉ **1 secret** là `ONECONFIG_GPG_PASSPHRASE`.
+2. **Bundle `1config.tar.gpg`** (gpg AES256, commit trong repo). Giải mã ra thư mục `1config/`, rồi `1config/cp.sh` copy từng file vào `src/`. Xem `1config/README.md`.
+3. **GitHub Actions** (repository secrets của omnibox): `ONECONFIG_GPG_PASSPHRASE` và `GIST_TOKEN`.
 
 ## Secret trên GitHub Actions
 
-| Tên | Mục đích | Environment | Rotate gần nhất |
+| Tên | Mục đích | Phạm vi | Rotate gần nhất |
 | --- | --- | --- | --- |
-| `ONECONFIG_GPG_PASSPHRASE` | Giải mã `1config.tar.gz.gpg` | `mobile-internal`, `mobile-production` | — |
+| `ONECONFIG_GPG_PASSPHRASE` | Giải mã `shell-mobile/1config.tar.gpg` | repository | — |
+| `GIST_TOKEN` | PAT (classic, scope `gist`) để đăng file build lên gist "omnibox builds" | repository | — |
 
 ## Nội dung bundle `1config`
 
@@ -33,6 +34,6 @@ Nơi lưu giá trị thật:
 - Hằng năm, và **ngay lập tức** khi có người rời dự án hoặc nghi ngờ bị lộ.
 - Sau khi rotate:
   1. Cập nhật vault, rồi cập nhật file trong `1config/`.
-  2. Mã hoá lại bundle và commit `1config.tar.gz.gpg`.
+  2. Mã hoá lại bundle và commit `1config.tar.gpg`.
   3. Ghi ngày vào bảng trên.
 - Khi rotate `ONECONFIG_GPG_PASSPHRASE`: cập nhật GitHub Environment secret, rồi báo cho các lập trình viên đang có passphrase cũ.

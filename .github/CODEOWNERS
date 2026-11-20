@@ -1,0 +1,11 @@
+# CODEOWNERS – repo omnibox (monorepo theo thư mục). Mọi thay đổi cần owner duyệt
+# (ruleset của main bật "Require review from Code Owners").
+# TODO: thay <github-username-owner> bằng tài khoản GitHub thật (hoặc team, vd. @<org>/mobile).
+
+/.github/                       @<github-username-owner>
+
+# shell-mobile
+/shell-mobile/                  @<github-username-owner>
+/shell-mobile/1config.tar.gpg   @<github-username-owner>
+/shell-mobile/src/android/      @<github-username-owner>
+/shell-mobile/src/ios/          @<github-username-owner>
