@@ -1,0 +1,8 @@
+. New Feature : Make call - Now you can use Gcalls to make calls direcly from the app
+. Improved call quality and stability
+. Incoming feature : Fix UX/UI 
+
+Thank you for using Gcalls to manage your corporate calls
+
+Best regards,
+Developer Team

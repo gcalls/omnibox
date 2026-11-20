@@ -1,0 +1,7 @@
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <string name="app_name">Gcalls Plus Mobile</string>
+    <string name="custom_field_title">My Custom Field</string>
+    <string name="mimetype_custom_field">vnd.android.cursor.item/custom_field</string>
+
+</resources>

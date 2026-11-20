@@ -1,0 +1,192 @@
+# =====================================================================================
+#  .gitignore – shell-mobile (repo public)
+#  Nguyên tắc: không bao giờ commit secret, chứng chỉ, dữ liệu cá nhân, file build/IDE/OS.
+#  Secret chỉ được đưa lên git dưới dạng bundle mã hoá 1config.tar.gz.gpg.
+# =====================================================================================
+
+# -------------------------------------------------------------------------------------
+# 1config – cấu hình & chứng chỉ build (xem 1config/README.md)
+# -------------------------------------------------------------------------------------
+/1config/
+/1config.tar
+/1config.tar.gz
+/1config.zip
+# Chỉ bản mã hoá được phép commit
+!/1config.tar.gz.gpg
+!/1config.tar.gpg
+
+# -------------------------------------------------------------------------------------
+# 1config – file đã copy vào src/ bởi 1config/cp.sh | cp.ps1
+# (giữ đồng bộ với bảng MAP trong cp.sh / cp.ps1)
+# -------------------------------------------------------------------------------------
+/src/.env
+/src/android/app/google-services.json
+/src/android/app/*.keystore
+!/src/android/app/debug.keystore
+/src/android/keystore.properties
+/src/android/fastlane/.env
+/src/android/fastlane/secure/
+/src/ios/fastlane/.env
+/src/ios/fastlane/secure/
+/src/ios/Gcalls/GoogleService-Info.plist
+
+# -------------------------------------------------------------------------------------
+# Tài liệu nội bộ (không public)
+# -------------------------------------------------------------------------------------
+/plan.md
+*.docx
+*.xlsx
+*.pptx
+
+# -------------------------------------------------------------------------------------
+# Secret, chứng chỉ, khoá – ở bất kỳ thư mục nào
+# -------------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.keystore
+!debug.keystore
+*.jks
+keystore.properties
+*.p12
+*.p8
+*.pem
+*.key
+*.cer
+*.crt
+*.der
+*.mobileprovision
+*.provisionprofile
+*.certSigningRequest
+google-services.json
+GoogleService-Info.plist
+apikey.json
+*service-account*.json
+*-key.json
+**/fastlane/secure/
+**/fastlane/.env
+**/fastlane/.env.*
+!**/fastlane/.env.example
+
+# -------------------------------------------------------------------------------------
+# Hệ điều hành
+# -------------------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+# Linux
+*~
+.directory
+.Trash-*
+.nfs*
+
+# -------------------------------------------------------------------------------------
+# IDE / editor
+# -------------------------------------------------------------------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/*
+!.vscode/extensions.json
+.history/
+.fleet/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+
+# -------------------------------------------------------------------------------------
+# Node / React Native / Metro
+# -------------------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+.yarn/*
+!.yarn/releases
+.eslintcache
+*.tsbuildinfo
+coverage/
+.metro-health-check*
+*.jsbundle
+**/android/app/src/main/assets/index.android.bundle*
+# Lockfile (package-lock.json, Gemfile.lock, Podfile.lock) PHẢI được commit để build tái lập được
+
+# -------------------------------------------------------------------------------------
+# Android / Gradle
+# -------------------------------------------------------------------------------------
+.gradle/
+.kotlin/
+**/android/build/
+**/android/app/build/
+**/android/**/build/
+local.properties
+.cxx/
+.externalNativeBuild/
+captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.hprof
+output-metadata.json
+**/android/specs.*.gz
+
+# -------------------------------------------------------------------------------------
+# iOS / Xcode / CocoaPods
+# -------------------------------------------------------------------------------------
+**/ios/Pods/
+**/ios/build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+.xcode.env.local
+
+# -------------------------------------------------------------------------------------
+# Ruby / Bundler / fastlane
+# -------------------------------------------------------------------------------------
+vendor/bundle/
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots/
+**/fastlane/test_output/
+**/fastlane/metadata/android/*/images/
+
+# -------------------------------------------------------------------------------------
+# Log / tạm
+# -------------------------------------------------------------------------------------
+*.log
+logs/
+tmp/
+*.tmp

@@ -1,0 +1,110 @@
+# =====================================================================================
+#  DEPRECATED – pipeline GitLab cũ, chỉ giữ làm tài liệu tham chiếu cho Phase 1
+#  (tái hiện trên GitHub Actions). Pipeline này KHÔNG còn chạy được: secret.sh và
+#  DO Spaces đã bị loại bỏ, fastlane giờ đọc cấu hình do 1config/cp.sh copy vào.
+#  Các lệnh echo/cat làm lộ secret đã được xoá. File sẽ bị xoá khi Phase 1 hoàn tất.
+# =====================================================================================
+image:
+  name: node:16
+
+variables:
+  LANG: en_US.UTF-8
+  LC_ALL: en_US.UTF-8
+
+  RELEASE_NOTE: '${CI_PROJECT_DIR}/src/android/fastlane/metadata/android/release_note.txt'
+  ANDROID_COMPILE_SDK: "30"
+  ANDROID_BUILD_TOOLS: "30.0.3"
+  ANDROID_SDK_TOOLS: "7583922"
+
+
+stages:
+    - android
+
+
+android:
+  image: openjdk:11-jdk
+  stage: android
+  dependencies: []
+  script:
+    - pwd
+    - node -v
+    - echo $SHELL
+    - touch ~/.bashrc
+    - export NVM_DIR="$HOME/.nvm"
+    - source ~/.bashrc
+    - curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    - nvm install 16
+    - npm i 
+    - npm install -D react-native-dotenv
+    - if [ "$CI_COMMIT_BRANCH" = "master" ]; then
+        echo "BASE_URL=$BASE_URL_MASTER" > .env;
+      elif [ "$CI_COMMIT_BRANCH" = "Test" ]; then
+        echo "BASE_URL=$BASE_URL_TEST" > .env;
+      fi
+    # (cũ) tải keystore + service account từ DO Spaces bằng secret.sh – đã loại bỏ
+
+    - pwd
+
+
+    - if [ "$CI_COMMIT_BRANCH" = "master" ]; then
+        echo "Prod release" > ${RELEASE_NOTE};
+        cat ${RELEASE_NOTE};
+        fastlane production;
+      elif [ "$CI_COMMIT_BRANCH" = "Test" ]; then
+        echo "Demo release" > ${RELEASE_NOTE};
+        fastlane demo;
+        cat ${RELEASE_NOTE};
+      fi
+  
+
+
+  artifacts:
+    paths:
+      - node_modules
+    # - fastlane release
+    # test
+  tags: #tag registered with gitlab-runner
+    - android
+  
+    
+  before_script:
+    - pwd
+    - temp_pwd=$(pwd)
+    - echo $CI_COMMIT_BRANCH
+    - echo $USER
+    - sudo su - root
+    - echo $USER
+    - sudo chmod 777 /tmp/metro-cache/
+    - cd /tmp/metro-cache
+    - sudo chown -R $USER /tmp/metro-cache
+    - pwd
+    - cd $temp_pwd
+    - pwd
+    - ls
+    - export ANDROID_SDK_ROOT="${PWD}/android-home"
+    - install -d $ANDROID_SDK_ROOT
+    - wget --output-document=$ANDROID_SDK_ROOT/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_SDK_TOOLS}_latest.zip
+    # move to the archive at ANDROID_SDK_ROOT
+    - pushd $ANDROID_SDK_ROOT
+    - unzip -d cmdline-tools cmdline-tools.zip
+    - pushd cmdline-tools
+    # since commandline tools version 7583922 the root folder is named "cmdline-tools" so we rename it if necessary
+    - mv cmdline-tools tools || true
+    - popd
+    - popd
+    - export PATH=$PATH:${ANDROID_SDK_ROOT}/cmdline-tools/tools/bin/
+
+  # Nothing fancy here, just checking sdkManager version
+    - sdkmanager --version
+
+  # use yes to accept all licenses
+    - yes | sdkmanager --licenses || true
+    - sdkmanager "platforms;android-${ANDROID_COMPILE_SDK}"
+    - sdkmanager "platform-tools"
+    - sdkmanager "build-tools;${ANDROID_BUILD_TOOLS}"
+    - cd src
+
+  only: #defines the names of branches and tags for which the job will run
+    - master
+    - Test
+

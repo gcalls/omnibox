@@ -1,0 +1,4 @@
+# Giá trị lấy từ src/android/fastlane/.env (copy bởi 1config/cp.sh) hoặc biến môi trường.
+# Service account Google Play không khai báo ở đây: Fastfile truyền json_key rõ ràng
+# (mặc định src/android/fastlane/secure/play-service-account.json).
+package_name(ENV.fetch("APP_ID", "co.gcalls.shell"))

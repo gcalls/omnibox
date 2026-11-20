@@ -1,0 +1,12 @@
+# fastlane match – lưu cert/profile (đã mã hoá bằng MATCH_PASSWORD) trong repo GitHub private.
+# Giá trị lấy từ src/ios/fastlane/.env (copy bởi 1config/cp.sh) hoặc biến môi trường CI:
+#   MATCH_GIT_URL, MATCH_PASSWORD, MATCH_GIT_BASIC_AUTHORIZATION, APP_ID, APPLE_TEAM_ID
+# Docs: https://docs.fastlane.tools/actions/match
+
+storage_mode("git")
+git_url(ENV["MATCH_GIT_URL"])
+git_basic_authorization(ENV["MATCH_GIT_BASIC_AUTHORIZATION"]) if ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
+
+type("appstore") # appstore, adhoc, enterprise hoặc development
+app_identifier([ENV.fetch("APP_ID", "co.gcalls.shell")])
+team_id(ENV["APPLE_TEAM_ID"])

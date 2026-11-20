@@ -1,0 +1,126 @@
+MY_APP_ID = ENV.fetch("APP_ID", "co.gcalls.shell")
+Spaceship::ConnectAPI::App.const_set('ESSENTIAL_INCLUDES', 'appStoreVersions')
+
+# Cấu hình và secret được copy vào bởi `bash 1config/cp.sh` (hoặc cp.ps1):
+#   src/ios/fastlane/.env              – APP_ID, APPLE_TEAM_ID, ASC_*, MATCH_*, TESTFLIGHT_GROUPS, APP_REVIEW_* (fastlane tự nạp)
+#   src/ios/fastlane/secure/AuthKey.p8 – App Store Connect API key
+# Có thể ghi đè đường dẫn key bằng biến môi trường ASC_KEY_PATH.
+FASTLANE_DIR = File.expand_path(File.dirname(__FILE__))
+
+default_platform(:ios)
+
+platform :ios do
+
+  def asc_key_path
+    path = ENV["ASC_KEY_PATH"].to_s.empty? ? File.join(FASTLANE_DIR, "secure", "AuthKey.p8") : ENV["ASC_KEY_PATH"]
+    UI.user_error!("Thiếu #{path} – giải mã 1config rồi chạy 1config/cp.sh") unless File.exist?(path)
+    path
+  end
+
+  # App Store Connect API key – thay cho ./secure/apikey.json và apple_id cá nhân
+  def asc_api_key
+    app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: asc_key_path,
+      in_house: false,
+    )
+  end
+
+  # Thông tin cho App Review – thay cho metadata/review_information/*
+  def app_review_information
+    {
+      first_name: ENV["APP_REVIEW_FIRST_NAME"],
+      last_name: ENV["APP_REVIEW_LAST_NAME"],
+      phone_number: ENV["APP_REVIEW_PHONE"],
+      email_address: ENV["APP_REVIEW_EMAIL"],
+      demo_user: ENV["APP_REVIEW_DEMO_USER"],
+      demo_password: ENV["APP_REVIEW_DEMO_PASSWORD"],
+      notes: ENV["APP_REVIEW_NOTES"],
+    }.reject { |_, v| v.nil? || v.empty? }
+  end
+
+  def csv_env(name)
+    (ENV[name] || "").split(",").map(&:strip).reject(&:empty?)
+  end
+
+  lane :buildIPA do
+
+    api_key = asc_api_key
+
+    # invokes cert
+    get_certificates(
+      api_key: api_key,
+      team_id: ENV["APPLE_TEAM_ID"],
+    )
+
+    # invokes sigh
+    get_provisioning_profile(
+      api_key: api_key,
+      team_id: ENV["APPLE_TEAM_ID"],
+      app_identifier: MY_APP_ID,
+    )
+
+    check_app_store_metadata(
+      api_key: api_key,
+      app_identifier: MY_APP_ID,
+      include_in_app_purchases: false
+    )
+
+    increment_build_number(xcodeproj: "Gcalls.xcodeproj")
+    build_app(
+      scheme: 'Gcalls',
+    )
+
+  end
+
+
+
+  desc "Push a new build to Testflight"
+  lane :uploadToTestFlight do
+
+    groups = csv_env("TESTFLIGHT_GROUPS")
+    upload_to_testflight(
+      api_key: asc_api_key,
+      skip_waiting_for_build_processing: groups.empty?,
+      # Dùng nhóm TestFlight thay cho danh sách email trong repo
+      groups: groups.empty? ? nil : groups,
+    )
+
+  end
+
+
+  desc "Push a new build to App Store"
+  lane :uploadToAppStore do
+
+  upload_to_app_store(
+    api_key: asc_api_key,
+    submit_for_review: false,
+    force: true,
+    app_identifier: MY_APP_ID,
+    metadata_path: File.join(FASTLANE_DIR, 'metadata'),
+    app_review_information: app_review_information,
+    sync_screenshots: false,
+    automatic_release: true,
+    precheck_include_in_app_purchases: false
+    )
+  end
+
+  desc "Build and Push a new build to Testflight"
+  lane :test do
+
+    buildIPA
+    uploadToTestFlight
+    clean_build_artifacts
+  end
+
+
+  desc "Build and Push a new build to AppStore"
+  lane :release do
+
+    buildIPA
+    uploadToAppStore
+    clean_build_artifacts
+  end
+
+end
