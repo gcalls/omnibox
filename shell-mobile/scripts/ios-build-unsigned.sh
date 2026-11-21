@@ -4,7 +4,8 @@
 #  Kết quả: $OUT_DIR/{branch}-{MARKETING_VERSION}.ipa (mặc định OUT_DIR=shell-mobile/dist)
 #
 #  Yêu cầu: macOS + Xcode; đã giải mã 1config, chạy `bash 1config/cp.sh <mode>`,
-#  `npm ci` trong src/ và `pod install` trong src/ios/.
+#  `npm ci` trong src/ và `NO_FLIPPER=1 PRODUCTION=1 pod install` trong src/ios/.
+#  PRODUCTION=1 bắt buộc: thiếu nó RN 0.71 nhúng Hermes bản debug (~480 MB), IPA vượt 100 MB.
 #
 #  IPA không ký: chỉ cài được sau khi tự ký lại (vd. bằng chứng chỉ của bạn qua Sideloadly/AltStore),
 #  vì bundle 1config chưa có chứng chỉ/provisioning profile của Apple.
