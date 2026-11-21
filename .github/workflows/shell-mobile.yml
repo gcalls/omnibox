@@ -134,12 +134,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Chọn Xcode
+      # Dùng Xcode mặc định của runner: chỉ bản này có sẵn nền tảng iOS để build.
+      - name: Phiên bản Xcode
         run: |
-          ls -d /Applications/Xcode*.app
-          XC=$(ls -d /Applications/Xcode_16.2*.app 2>/dev/null | head -n1 || true)
-          if [ -n "$XC" ]; then sudo xcode-select -s "$XC"; fi
+          xcode-select -p
           xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
 
       - uses: actions/setup-node@v5
         with:

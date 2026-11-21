@@ -66,6 +66,8 @@ target 'Gcalls' do
         defs = [defs] if defs.is_a?(String)
         defs << '_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION'
         config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = defs
+        # Xcode 16.3+: fmt 6.2.1 lỗi std::char_traits<char8_t> khi biên dịch ở C++20 → ép C++17
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17' if target.name == 'fmt'
       end
     end
   end
