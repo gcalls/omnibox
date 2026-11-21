@@ -18,6 +18,13 @@ DESC="${GIST_DESCRIPTION:-omnibox builds}"
 SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
 export GH_TOKEN="$GIST_TOKEN"
 
+# Đổi sang đường dẫn tuyệt đối trước khi cd vào bản clone của gist
+files=()
+for f in "$@"; do
+  [ -f "$f" ] || { echo "Không có file: $f" >&2; exit 1; }
+  files+=("$(cd "$(dirname "$f")" && pwd)/$(basename "$f")")
+done
+
 owner="$(gh api user --jq .login)"
 gist_id="$(gh api --paginate /gists --jq ".[] | select(.description == \"$DESC\") | .id" | head -n1)"
 if [ -z "$gist_id" ]; then
@@ -35,8 +42,7 @@ git config user.name "omnibox-ci"
 git config user.email "omnibox-ci@users.noreply.github.com"
 
 names=()
-for f in "$@"; do
-  [ -f "$f" ] || { echo "Không có file: $f" >&2; exit 1; }
+for f in "${files[@]}"; do
   cp "$f" "./$(basename "$f")"
   names+=("$(basename "$f")")
 done
