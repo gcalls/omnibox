@@ -31,6 +31,10 @@ version="$(xcodebuild -project "$IOS/Gcalls.xcodeproj" -target Gcalls -configura
 name="${branch}-${version}"
 echo "Build iOS → ${name}.ipa (Xcode: $(xcodebuild -version | head -1))"
 
+# archive (thay vì build): bật DEPLOYMENT_POSTPROCESSING nên strip ký hiệu debug khỏi binary,
+# giảm IPA từ ~150 MB xuống dưới giới hạn 100 MB/file của gist. dSYM nằm riêng trong .xcarchive.
+ARCHIVE="$IOS/build/Gcalls.xcarchive"
+rm -rf "$ARCHIVE"
 xcodebuild \
   -workspace "$IOS/Gcalls.xcworkspace" \
   -scheme Gcalls \
@@ -38,18 +42,20 @@ xcodebuild \
   -sdk iphoneos \
   -destination 'generic/platform=iOS' \
   -derivedDataPath "$DERIVED" \
+  -archivePath "$ARCHIVE" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
   -quiet \
-  build
+  archive
 
-app="$(find "$DERIVED/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' | head -n1)"
-[ -n "$app" ] || { echo "Không tìm thấy file .app" >&2; exit 1; }
+app="$(find "$ARCHIVE/Products/Applications" -maxdepth 1 -name '*.app' | head -n1)"
+[ -n "$app" ] || { echo "Không tìm thấy file .app trong archive" >&2; exit 1; }
+du -sh "$app"
 
 mkdir -p "$OUT_DIR"
 tmp="$(mktemp -d)"
 mkdir "$tmp/Payload"
 cp -R "$app" "$tmp/Payload/"
 rm -f "$OUT_DIR/${name}.ipa"
-(cd "$tmp" && zip -qry "$OUT_DIR/${name}.ipa" Payload)
+(cd "$tmp" && zip -qry -9 "$OUT_DIR/${name}.ipa" Payload)
 rm -rf "$tmp"
 ls -la "$OUT_DIR/${name}.ipa"

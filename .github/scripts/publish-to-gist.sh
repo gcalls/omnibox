@@ -22,6 +22,11 @@ export GH_TOKEN="$GIST_TOKEN"
 files=()
 for f in "$@"; do
   [ -f "$f" ] || { echo "Không có file: $f" >&2; exit 1; }
+  # Gist (git) từ chối file > 100 MB
+  size=$(wc -c < "$f")
+  if [ "$size" -ge 100000000 ]; then
+    echo "::error::$f nặng $((size / 1000000)) MB, vượt giới hạn 100 MB/file của gist" >&2; exit 1
+  fi
   files+=("$(cd "$(dirname "$f")" && pwd)/$(basename "$f")")
 done
 
