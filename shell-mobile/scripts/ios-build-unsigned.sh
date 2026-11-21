@@ -59,6 +59,15 @@ exe="$app/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.pl
 for bin in "$exe" $(find "$app/Frameworks" -maxdepth 2 -type f -perm -111 2>/dev/null); do
   if file "$bin" | grep -q 'Mach-O'; then
     before=$(du -k "$bin" | cut -f1)
+    echo "  $(lipo -info "$bin" 2>/dev/null)"
+    # Chỉ giữ arm64 (iPhone) nếu là fat binary
+    if lipo -archs "$bin" 2>/dev/null | grep -q ' '; then
+      lipo "$bin" -thin arm64 -output "$bin.thin" && mv "$bin.thin" "$bin"
+    fi
+    # Hermes của RN 0.71 build kèm bitcode (Apple đã bỏ từ Xcode 14): xoá segment __LLVM
+    if otool -l "$bin" 2>/dev/null | grep -q '__LLVM'; then
+      xcrun bitcode_strip -r "$bin" -o "$bin.nobc" && mv "$bin.nobc" "$bin" || echo "  (bitcode_strip lỗi $bin)"
+    fi
     xcrun strip -S -x "$bin" 2>/dev/null || echo "  (không strip được $bin)"
     echo "  strip $(basename "$bin"): $((before / 1024)) MB → $(( $(du -k "$bin" | cut -f1) / 1024 )) MB"
   fi
