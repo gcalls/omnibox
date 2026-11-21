@@ -50,6 +50,19 @@ xcodebuild \
 app="$(find "$ARCHIVE/Products/Applications" -maxdepth 1 -name '*.app' | head -n1)"
 [ -n "$app" ] || { echo "Không tìm thấy file .app trong archive" >&2; exit 1; }
 du -sh "$app"
+echo "15 file lớn nhất trong $(basename "$app"):"
+find "$app" -type f -exec du -k {} + | sort -rn | head -15 | awk '{printf "  %8.1f MB  %s\n", $1/1024, $2}'
+
+# Strip ký hiệu debug khỏi file thực thi chính và các framework nhúng (an toàn vì IPA chưa ký)
+exe="$app/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
+for bin in "$exe" $(find "$app/Frameworks" -maxdepth 2 -type f -perm -111 2>/dev/null); do
+  if file "$bin" | grep -q 'Mach-O'; then
+    before=$(du -k "$bin" | cut -f1)
+    xcrun strip -S -x "$bin" 2>/dev/null || echo "  (không strip được $bin)"
+    echo "  strip $(basename "$bin"): $((before / 1024)) MB → $(( $(du -k "$bin" | cut -f1) / 1024 )) MB"
+  fi
+done
+du -sh "$app"
 
 mkdir -p "$OUT_DIR"
 tmp="$(mktemp -d)"
