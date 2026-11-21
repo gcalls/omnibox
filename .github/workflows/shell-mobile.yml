@@ -94,7 +94,15 @@ jobs:
               --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
           bash 1config/cp.sh "$CONFIG_MODE"
 
+      - name: Cache node_modules
+        id: nm
+        uses: actions/cache@v4
+        with:
+          path: shell-mobile/src/node_modules
+          key: nm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('shell-mobile/src/.node-version', 'shell-mobile/src/package-lock.json', 'shell-mobile/src/patches/**') }}
+
       - name: Cài dependency JS
+        if: steps.nm.outputs.cache-hit != 'true'
         working-directory: shell-mobile/src
         run: npm ci --no-audit --no-fund
 
@@ -138,7 +146,9 @@ jobs:
 
       # Dùng Xcode mặc định của runner: chỉ bản này có sẵn nền tảng iOS để build.
       - name: Phiên bản Xcode
+        id: xcode
         run: |
+          echo "version=$(xcodebuild -version | head -1 | tr -d ' ')" >> "$GITHUB_OUTPUT"
           xcode-select -p
           xcodebuild -version
           xcodebuild -showsdks | grep -i iphoneos
@@ -158,12 +168,36 @@ jobs:
               --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
           bash 1config/cp.sh "$CONFIG_MODE"
 
+      - name: Cache node_modules
+        id: nm
+        uses: actions/cache@v4
+        with:
+          path: shell-mobile/src/node_modules
+          key: nm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('shell-mobile/src/.node-version', 'shell-mobile/src/package-lock.json', 'shell-mobile/src/patches/**') }}
+
+      - name: Cache CocoaPods (Pods + bản tải về)
+        uses: actions/cache@v4
+        with:
+          path: |
+            shell-mobile/src/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-prod${{ env.PRODUCTION }}-noflipper${{ env.NO_FLIPPER }}-${{ hashFiles('shell-mobile/src/ios/Podfile', 'shell-mobile/src/ios/Podfile.lock', 'shell-mobile/src/package-lock.json', 'shell-mobile/src/patches/**') }}
+
+      # DerivedData: giữ phần đã biên dịch của các pod giữa các lần chạy (cùng dependency + cùng Xcode)
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: shell-mobile/src/ios/build/DerivedData
+          key: dd-${{ runner.os }}-${{ steps.xcode.outputs.version }}-prod${{ env.PRODUCTION }}-${{ hashFiles('shell-mobile/src/ios/Podfile', 'shell-mobile/src/ios/Podfile.lock', 'shell-mobile/src/package-lock.json', 'shell-mobile/src/patches/**') }}
+
       - name: Cài dependency JS + CocoaPods
         working-directory: shell-mobile/src
         run: |
-          npm ci --no-audit --no-fund --ignore-scripts
-          npx patch-package
-          npx react-native setup-ios-permissions
+          if [ "${{ steps.nm.outputs.cache-hit }}" != "true" ]; then
+            npm ci --no-audit --no-fund --ignore-scripts
+            npx patch-package
+            npx react-native setup-ios-permissions
+          fi
           cd ios && pod install
 
       - name: Build IPA (xcodebuild, không fastlane)

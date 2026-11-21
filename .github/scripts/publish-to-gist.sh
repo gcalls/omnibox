@@ -8,7 +8,7 @@
 #    GIST_DESCRIPTION  mô tả để tìm gist (mặc định "omnibox builds"); chưa có thì tạo gist secret mới
 #
 #  Gist là thư mục phẳng: file cùng tên sẽ bị ghi đè (cùng branch + version).
-#  Sau khi push, script tải lại từng file qua raw URL bằng curl và so sha256 để xác nhận.
+#  Script chỉ đăng file; việc kiểm tra tải về bằng gh + curl làm ở máy local, không thuộc CI.
 # =====================================================================================
 set -euo pipefail
 
@@ -71,26 +71,13 @@ git add -A
 msg="build: ${names[*]} (${GITHUB_REPOSITORY:-local}@${GITHUB_SHA:-$(date -u +%FT%TZ)})"
 git commit -q -m "$msg" || echo "Không có thay đổi để commit"
 git push -q origin HEAD
-rev="$(git rev-parse HEAD)"
 
-# Xác nhận: tải lại qua raw URL (bản đúng commit vừa push) và so sha256
+# Ghi link tải vào Summary của lần chạy. Việc kiểm tra tải về (gh + curl) làm ngoài CI.
 {
   echo "### Gist: https://gist.github.com/$owner/$gist_id"
   echo
   echo "| File | Link tải (luôn là bản mới nhất) |"
   echo "| --- | --- |"
+  for n in "${names[@]}"; do echo "| \`$n\` | $raw/$n |"; done
 } >> "$SUMMARY"
-for n in "${names[@]}"; do
-  pinned="$raw/$rev/$n"
-  ok=""
-  for attempt in 1 2 3 4 5 6; do
-    if curl -fsSL -o "$work/check" "$pinned" \
-       && [ "$(sha256sum "$work/check" | cut -d' ' -f1)" = "$(sha256sum "$n" | cut -d' ' -f1)" ]; then
-      ok=1; break
-    fi
-    sleep $((attempt * 5))
-  done
-  [ -n "$ok" ] || { echo "::error::Không tải lại được $n qua $pinned" >&2; exit 1; }
-  echo "OK  $n  →  $raw/$n"
-  echo "| \`$n\` | $raw/$n |" >> "$SUMMARY"
-done
+for n in "${names[@]}"; do echo "Đã đăng $n → $raw/$n"; done
