@@ -104,7 +104,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // CI truyền VERSION_CODE (tăng theo mỗi lần chạy workflow); build local mặc định 1
         versionCode((System.getenv("VERSION_CODE") ?: "1") as Integer)
-        versionName "1.0"
+        // Tag v1.2.3 → APP_VERSION=1.2.3 (CI); build thường mặc định 1.0
+        versionName(System.getenv("APP_VERSION") ?: "1.0")
         // Định danh phải duy nhất trên máy: suy ra từ applicationId (dùng trong res/xml qua @string)
         resValue "string", "contacts_account_type", "${applicationId}.contacts"
     }

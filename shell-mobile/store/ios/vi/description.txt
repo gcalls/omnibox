@@ -1,0 +1,16 @@
+Omnibox là ứng dụng tổng đài di động của Gcalls dành cho doanh nghiệp. Nhân viên bán hàng và chăm sóc khách hàng có thể gọi và nhận cuộc gọi qua tổng đài công ty ở bất kỳ đâu, ngay trên điện thoại.
+
+Tính năng chính:
+• Gọi và nhận cuộc gọi qua số tổng đài của doanh nghiệp (VoIP), không lộ số cá nhân.
+• Mở nhanh cuộc gọi từ đường dẫn số điện thoại (tel:) hoặc liên kết Gcalls.
+• Danh bạ Gcalls đồng bộ vào danh bạ điện thoại để nhận diện khách hàng.
+• Giữ màn hình sáng và chuyển âm thanh loa ngoài/tai nghe Bluetooth trong cuộc gọi.
+• Thông báo cuộc gọi và sự kiện quan trọng.
+
+Quyền ứng dụng sử dụng:
+• Micro: để đàm thoại.
+• Danh bạ: đồng bộ danh bạ Gcalls (tuỳ chọn).
+• Thông báo: báo cuộc gọi và sự kiện.
+Omnibox không thay thế ứng dụng gọi điện mặc định của máy và không đọc nhật ký cuộc gọi.
+
+Ứng dụng yêu cầu tài khoản Gcalls do doanh nghiệp cấp. Thông tin thêm: https://gcalls.co

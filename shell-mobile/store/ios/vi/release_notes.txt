@@ -1,0 +1,1 @@
+Phiên bản đầu tiên của Omnibox: gọi điện qua tổng đài Gcalls, đồng bộ danh bạ, hỗ trợ tai nghe Bluetooth.

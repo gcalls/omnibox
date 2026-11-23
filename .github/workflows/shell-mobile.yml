@@ -9,10 +9,15 @@
 #
 #  Tên file: {branch}-{version}.{apk|ipa}. File được đăng lên gist chung "omnibox builds".
 #  Cấu hình: main → `1config/cp.sh production`, test/khác → `1config/cp.sh internal`.
-#  Nhánh main còn phát hành (Marketplace actions, đọc credential trực tiếp từ 1config đã giải mã):
-#    Android → Firebase App Distribution (wzieba/Firebase-Distribution-Github-Action)
-#            → Google Play, track PLAY_TRACK trong 1config/android/app.env (r0adkll/upload-google-play)
-#    iOS     → TestFlight (apple-actions/import-codesign-certs + apple-actions/upload-testflight-build)
+#  Phát hành (Marketplace actions + script API, đọc credential trực tiếp từ 1config đã giải mã):
+#    main   Android → Firebase App Distribution + Google Play track PLAY_TRACK (internal)
+#           iOS     → TestFlight (nhóm "Omnibox Internal" nhận mọi build)
+#    tag v* Android → Google Play production;  iOS → TestFlight + nộp App Store Review
+#           (phiên bản = tên tag bỏ "v": v1.2.3 → 1.2.3; tự phát hành khi store duyệt)
+#    shell-mobile/store/** thay đổi → đồng bộ trang store (scripts/store-sync-android.sh,
+#           scripts/store_sync_ios.py) mà không build lại.
+#  Google Play: app chưa phát hành lần nào thì release chỉ được là draft (scripts/play-release-status.sh
+#  tự nhận biết) – bản đầu tiên bấm phát hành trên Play Console, từ đó CI phát hành tự động.
 #
 #  Secrets (Settings → Secrets and variables → Actions → Repository secrets):
 #    ONECONFIG_GPG_PASSPHRASE  passphrase giải mã shell-mobile/1config.tar.gpg
@@ -26,6 +31,7 @@ name: shell-mobile
 on:
   push:
     branches: [main, test]
+    tags: ["v*"]                 # bộ lọc paths không áp dụng cho tag
     paths:
       - "shell-mobile/**"
   workflow_dispatch:
@@ -44,7 +50,8 @@ permissions:
   contents: read
 
 env:
-  CONFIG_MODE: ${{ github.ref_name == 'main' && 'production' || 'internal' }}
+  IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+  CONFIG_MODE: ${{ (github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v')) && 'production' || 'internal' }}
 
 jobs:
   changes:
@@ -53,6 +60,7 @@ jobs:
     outputs:
       android: ${{ steps.detect.outputs.android }}
       ios: ${{ steps.detect.outputs.ios }}
+      store: ${{ steps.detect.outputs.store }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -100,6 +108,10 @@ jobs:
               --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
           bash 1config/cp.sh "$CONFIG_MODE"
 
+      - name: Phiên bản từ tag
+        if: env.IS_RELEASE == 'true'
+        run: echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
       # Biến không bí mật từ 1config/android/app.env (APP_ID, FIREBASE_ANDROID_APP_ID, PLAY_TRACK, …)
       - name: Đọc 1config/android/app.env
         id: cfg
@@ -108,6 +120,9 @@ jobs:
             [[ "$k" =~ ^[A-Z_]+$ ]] && echo "$(echo "$k" | tr 'A-Z' 'a-z')=$v" >> "$GITHUB_OUTPUT"
           done < <(grep -E '^[A-Z_]+=' 1config/android/app.env)
           [ -f 1config/android/play-service-account.json ] && echo "has_play=true" >> "$GITHUB_OUTPUT" || echo "has_play=false" >> "$GITHUB_OUTPUT"
+          # Tag → production; main → PLAY_TRACK. Trạng thái: draft cho tới khi app được phát hành lần đầu.
+          [ "$IS_RELEASE" = true ] && echo "track=production" >> "$GITHUB_OUTPUT" || echo "track=$(sed -n 's/^PLAY_TRACK=//p' 1config/android/app.env)" >> "$GITHUB_OUTPUT"
+          echo "release_status=$(bash scripts/play-release-status.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Cache node_modules
         id: nm
@@ -139,7 +154,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # ---- Chỉ nhánh main: phát hành cho tester và lên Google Play --------------------------
+      # ---- main: tester (Firebase) + Google Play internal;  tag v*: Google Play production -------
       - name: Firebase App Distribution (APK)
         if: github.ref_name == 'main'
         uses: wzieba/Firebase-Distribution-Github-Action@v1
@@ -150,15 +165,16 @@ jobs:
           file: ${{ steps.build.outputs.apk }}
           releaseNotes: "${{ github.ref_name }}@${{ github.sha }} (versionCode ${{ github.run_number }})"
 
-      - name: Google Play (AAB → track ${{ steps.cfg.outputs.play_track }})
-        if: github.ref_name == 'main' && steps.cfg.outputs.has_play == 'true' && steps.cfg.outputs.play_upload == 'true'
+      - name: Google Play (AAB → ${{ steps.cfg.outputs.track }}, ${{ steps.cfg.outputs.release_status }})
+        if: (github.ref_name == 'main' || env.IS_RELEASE == 'true') && steps.cfg.outputs.has_play == 'true' && steps.cfg.outputs.play_upload == 'true'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJson: shell-mobile/1config/android/play-service-account.json
           packageName: ${{ steps.cfg.outputs.app_id }}
           releaseFiles: shell-mobile/dist/*.aab
-          track: ${{ steps.cfg.outputs.play_track }}
-          status: ${{ steps.cfg.outputs.play_release_status }}
+          tracks: ${{ steps.cfg.outputs.track }}
+          status: ${{ steps.cfg.outputs.release_status }}
+          whatsNewDirectory: shell-mobile/store/android/whatsnew
 
       - name: Dọn cấu hình đã giải mã
         if: always()
@@ -180,6 +196,10 @@ jobs:
         working-directory: shell-mobile
     steps:
       - uses: actions/checkout@v5
+
+      - name: Phiên bản từ tag
+        if: env.IS_RELEASE == 'true'
+        run: echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       # Dùng Xcode mặc định của runner: chỉ bản này có sẵn nền tảng iOS để build.
       - name: Phiên bản Xcode
@@ -285,9 +305,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # ---- Chỉ nhánh main + đã có bộ ký: upload lên TestFlight -------------------------------
+      # ---- main / tag v* + đã có bộ ký: TestFlight;  tag v*: nộp App Store Review ---------------
       - name: Upload TestFlight
-        if: github.ref_name == 'main' && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
+        if: (github.ref_name == 'main' || env.IS_RELEASE == 'true') && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
         uses: apple-actions/upload-testflight-build@v1
         with:
           app-path: ${{ steps.build.outputs.ipa }}
@@ -295,11 +315,40 @@ jobs:
           api-key-id: ${{ steps.sign.outputs.asc_key_id }}
           api-private-key: ${{ steps.sign.outputs.asc_key }}
 
+      - name: Nộp App Store Review (${{ env.APP_VERSION }})
+        if: env.IS_RELEASE == 'true' && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
+        run: python3 -I scripts/ios_submit.py --version "$APP_VERSION" --build "$BUILD_NUMBER"
+
       - name: Dọn cấu hình đã giải mã
         if: always()
         run: |
           [ -f 1config/cp.sh ] && bash 1config/cp.sh --clean || true
           rm -rf 1config
+
+  store:
+    name: Đồng bộ trang store
+    needs: changes
+    if: needs.changes.outputs.store == 'true' && (github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: shell-mobile
+    steps:
+      - uses: actions/checkout@v5
+      - name: Giải mã 1config
+        env:
+          ONECONFIG_GPG_PASSPHRASE: ${{ secrets.ONECONFIG_GPG_PASSPHRASE }}
+        run: |
+          gpg --batch --yes --quiet --pinentry-mode loopback --decrypt \
+              --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
+      - name: Google Play (listing, icon, feature graphic, liên hệ)
+        run: bash scripts/store-sync-android.sh
+      - name: App Store Connect (metadata, xếp hạng, giá, App Review, TestFlight)
+        run: python3 -I scripts/store_sync_ios.py
+      - name: Dọn cấu hình đã giải mã
+        if: always()
+        run: rm -rf 1config
 
   publish:
     name: Đăng lên gist omnibox

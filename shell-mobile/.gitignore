@@ -190,3 +190,7 @@ vendor/bundle/
 logs/
 tmp/
 *.tmp
+
+# Python
+__pycache__/
+*.pyc

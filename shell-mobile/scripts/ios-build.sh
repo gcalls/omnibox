@@ -7,6 +7,7 @@
 #            keychain/máy – CI làm bằng apple-actions/import-codesign-certs), export bản App Store.
 #  mặc định  IPA không ký (cài được sau khi tự ký lại, vd. Sideloadly/AltStore).
 #  BUILD_NUMBER  số build (CFBundleVersion); CI truyền github.run_number. Mặc định theo project.
+#  APP_VERSION   phiên bản hiển thị (CFBundleShortVersionString); CI truyền từ tag v*. Mặc định theo project.
 #
 #  Yêu cầu: macOS + Xcode; đã giải mã 1config, chạy `bash 1config/cp.sh <mode>`,
 #  `npm ci` trong src/ và `pod install` trong src/ios/ (React Native 0.88, New Architecture).
@@ -36,6 +37,7 @@ team="$(setting DEVELOPMENT_TEAM)"; profile="$(setting PROVISIONING_PROFILE_SPEC
 [ -n "$version" ] || { echo "Không đọc được MARKETING_VERSION" >&2; exit 1; }
 name="${branch}-${version}"
 extra=(); [ -n "${BUILD_NUMBER:-}" ] && extra+=("CURRENT_PROJECT_VERSION=$BUILD_NUMBER")
+[ -n "${APP_VERSION:-}" ] && { extra+=("MARKETING_VERSION=$APP_VERSION"); version="$APP_VERSION"; name="${branch}-${version}"; }
 [ "$SIGNED" = 1 ] || extra+=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="")
 echo "Build iOS $bundle_id $version (build ${BUILD_NUMBER:-mặc định}) → ${name}.ipa | ký: $([ "$SIGNED" = 1 ] && echo "có, profile \"$profile\", team $team" || echo không) | $(xcodebuild -version | head -1)"
 

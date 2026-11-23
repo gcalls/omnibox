@@ -7,10 +7,12 @@
 #    shell-mobile/src/ios/**, shell-mobile/scripts/ios-build.sh → iOS
 #    shell-mobile/src/** còn lại (JS, package.json…) → cả hai (code dùng chung)
 #    shell-mobile/1config.tar.gpg                   → cả hai (cấu hình dùng chung)
+#    shell-mobile/store/**                          → đồng bộ metadata store (không build)
 #    còn lại (docs, README…)                        → không build
+#  Tag v* (phát hành production): build cả hai + đồng bộ store.
 #
 #  Env: EVENT_NAME, BEFORE, AFTER, PLATFORM (workflow_dispatch: both|android|ios)
-#  Ghi android=true|false, ios=true|false vào $GITHUB_OUTPUT (mặc định stdout).
+#  Ghi android=, ios=, store= (true|false) vào $GITHUB_OUTPUT (mặc định stdout).
 # =====================================================================================
 set -euo pipefail
 
@@ -19,8 +21,12 @@ EVENT_NAME="${EVENT_NAME:-push}"
 AFTER="${AFTER:-HEAD}"
 android=false
 ios=false
+store=false
 
-if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+  android=true; ios=true; store=true
+  echo "Tag phát hành ${GITHUB_REF#refs/tags/} → build cả hai + đồng bộ store"
+elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
   case "${PLATFORM:-both}" in
     android) android=true ;;
     ios)     ios=true ;;
@@ -41,12 +47,14 @@ else
       shell-mobile/src/android/*)                     android=true ;;
       shell-mobile/src/ios/*|shell-mobile/scripts/ios-build.sh) ios=true ;;
       shell-mobile/src/*|shell-mobile/1config.tar.gpg) android=true; ios=true ;;
+      shell-mobile/store/*)                           store=true ;;
     esac
   done < <(git diff --name-only "$BEFORE" "$AFTER" -- shell-mobile)
 fi
 
-echo "→ android=$android ios=$ios"
+echo "→ android=$android ios=$ios store=$store"
 {
   echo "android=$android"
   echo "ios=$ios"
+  echo "store=$store"
 } >> "$OUT"
