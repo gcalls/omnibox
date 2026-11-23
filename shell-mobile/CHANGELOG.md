@@ -13,6 +13,9 @@
 
 ### Thay đổi
 
+- Nâng React Native 0.71.7 → 0.88.1 (React 19, New Architecture, Node 24). Android dựng lại từ template (Kotlin, AGP/Gradle 9.4; minSdk 31, targetSdk 36, compileSdk 37); iOS dựng lại (AppDelegate/SceneDelegate Swift, iOS 15.1+, Xcode 26). Thông báo local dùng Notifee, keep-awake dùng @sayem314/react-native-keep-awake; bỏ thư viện không dùng/ngừng phát triển.
+- Gọi điện: chỉ nhận link `tel:`/`gcalls:` (iOS: `gcalls:` và cuộc gọi từ danh bạ/Siri); bỏ prompt trình gọi mặc định và quyền Play hạn chế `PROCESS_OUTGOING_CALLS`, `CALL_REDIRECTION`.
+
 - App đổi thành **Omnibox** (`co.gcalls.omnibox`, Android versionCode theo lần chạy CI, iOS 1.0): Firebase/Google Cloud project mới `omnibox-515602`, upload keystore và service account mới; bộ cũ của `co.gcalls.shell` chuyển vào `1config/archive/`. Authority/account type Android suy ra từ `applicationId` để cài song song với app cũ.
 - Bỏ fastlane (Fastfile, Matchfile, Gemfile). CI phát hành bằng Marketplace actions: Firebase App Distribution, Google Play, TestFlight. Thêm `1config/chplay/` và `1config/appconnect/` để quản lý Google Play / App Store Connect qua API.
 - iOS: Release ký thủ công với profile "Omnibox App Store", entitlements riêng `GcallsRelease.entitlements` (push production); xoá bitcode Hermes trong Podfile.

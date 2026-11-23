@@ -17,16 +17,13 @@
 
 ## Yêu cầu môi trường
 
-| Công cụ | Phiên bản hiện tại (RN 0.71) |
+| Công cụ | Phiên bản (React Native 0.88, New Architecture) |
 | --- | --- |
-| Node.js | 18 LTS |
-| JDK | 11 |
-| Android SDK | API 33 |
-| Xcode | 26.x (bắt buộc để upload App Store) |
-| Ruby / Bundler | theo `src/ios/Gemfile.lock` |
-| CocoaPods | theo `src/ios/Podfile.lock` |
-
-Các phiên bản trên sẽ được nâng cùng đợt nâng cấp React Native (xem `CHANGELOG.md`).
+| Node.js | 24 (`src/.node-version`) |
+| JDK | 17 |
+| Android SDK | compileSdk 37, targetSdk 36, minSdk 31 (Android 12 → 17), build-tools 37, NDK 27.1 |
+| Xcode | 26.x (iOS 26 SDK, bắt buộc để upload App Store); app chạy từ iOS 15.1 |
+| CocoaPods | bản cài sẵn trên máy/runner macOS |
 
 ## Cài đặt local
 
@@ -45,7 +42,7 @@ Các phiên bản trên sẽ được nâng cùng đợt nâng cấp React Nativ
    ```bash
    cd src
    npm install
-   (cd ios && NO_FLIPPER=1 PRODUCTION=1 pod install)        # chỉ trên macOS
+   (cd ios && pod install)                                   # chỉ trên macOS
    npm run android      # hoặc: npm run ios
    ```
 
