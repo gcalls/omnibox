@@ -29,9 +29,9 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Gcalls/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Gcalls/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = Gcalls/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		1C80FFCF53A5C73339609DCD /* GcallsRelease.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = GcallsRelease.entitlements; sourceTree = "<group>"; };
+		1C80FFCF53A5C73339609DCD /* GcallsRelease.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = GcallsRelease.entitlements; path = Gcalls/GcallsRelease.entitlements; sourceTree = "<group>"; };
 		1EBE28C0A3C656C0B0ABF66D /* UserActivityModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = UserActivityModule.m; sourceTree = "<group>"; };
-		20EE0C1CF94D95045BEE83B5 /* Gcalls-Bridging-Header.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "Gcalls-Bridging-Header.h"; sourceTree = "<group>"; };
+		20EE0C1CF94D95045BEE83B5 /* Gcalls-Bridging-Header.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = "Gcalls-Bridging-Header.h"; path = "Gcalls/Gcalls-Bridging-Header.h"; sourceTree = "<group>"; };
 		2F8CB4E6496786EB0FB853AC /* RCTCalendarModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = RCTCalendarModule.m; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-Gcalls.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Gcalls.debug.xcconfig"; path = "Target Support Files/Pods-Gcalls/Pods-Gcalls.debug.xcconfig"; sourceTree = "<group>"; };
 		46876E2CB5695A78970E1FEC /* AudioManagerIosModule.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = AudioManagerIosModule.h; sourceTree = "<group>"; };
@@ -44,7 +44,7 @@
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Gcalls/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		88256089E6B3E59A34A6E482 /* LocalStorageIosModule.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = LocalStorageIosModule.h; sourceTree = "<group>"; };
 		91844C39BA54BDEC69FF0B34 /* UserActivityModule.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = UserActivityModule.h; sourceTree = "<group>"; };
-		97408C198873B50B541843A3 /* Gcalls.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Gcalls.entitlements; sourceTree = "<group>"; };
+		97408C198873B50B541843A3 /* Gcalls.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = Gcalls.entitlements; path = Gcalls/Gcalls.entitlements; sourceTree = "<group>"; };
 		A01620DF19F85C29B3E8818E /* NSObject+CallObserver.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "NSObject+CallObserver.h"; sourceTree = "<group>"; };
 		E08113269C0B7720882EEB02 /* CalendarManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarManager.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -82,7 +82,7 @@
 				1EBE28C0A3C656C0B0ABF66D /* UserActivityModule.m */,
 			);
 			name = Native;
-			path = Native;
+			path = Gcalls/Native;
 			sourceTree = "<group>";
 		};
 		13B07FAE1A68108700A75B9A /* Gcalls */ = {
