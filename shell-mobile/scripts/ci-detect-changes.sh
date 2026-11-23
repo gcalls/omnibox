@@ -8,6 +8,8 @@
 #    shell-mobile/src/** còn lại (JS, package.json…) → cả hai (code dùng chung)
 #    shell-mobile/1config.tar.gpg                   → cả hai (cấu hình dùng chung)
 #    shell-mobile/store/**                          → đồng bộ metadata store (không build)
+#    shell-mobile/store/<os>/screenshots.sha256     → + upload lại screenshot của hệ điều hành đó
+#      (file mã băm do 1config/cp.sh ghi từ 1config/screenshots/<os>/)
 #    còn lại (docs, README…)                        → không build
 #  Tag v* (phát hành production): build cả hai + đồng bộ store.
 #
@@ -22,6 +24,8 @@ AFTER="${AFTER:-HEAD}"
 android=false
 ios=false
 store=false
+shots_android=false
+shots_ios=false
 
 if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
   android=true; ios=true; store=true
@@ -47,14 +51,18 @@ else
       shell-mobile/src/android/*)                     android=true ;;
       shell-mobile/src/ios/*|shell-mobile/scripts/ios-build.sh) ios=true ;;
       shell-mobile/src/*|shell-mobile/1config.tar.gpg) android=true; ios=true ;;
+      shell-mobile/store/android/screenshots.sha256)  store=true; shots_android=true ;;
+      shell-mobile/store/ios/screenshots.sha256)      store=true; shots_ios=true ;;
       shell-mobile/store/*)                           store=true ;;
     esac
   done < <(git diff --name-only "$BEFORE" "$AFTER" -- shell-mobile)
 fi
 
-echo "→ android=$android ios=$ios store=$store"
+echo "→ android=$android ios=$ios store=$store shots_android=$shots_android shots_ios=$shots_ios"
 {
   echo "android=$android"
   echo "ios=$ios"
   echo "store=$store"
+  echo "shots_android=$shots_android"
+  echo "shots_ios=$shots_ios"
 } >> "$OUT"

@@ -3,7 +3,8 @@
 #  store-sync-android.sh – đồng bộ trang Google Play từ shell-mobile/store/ (không fastlane):
 #    store/android/listings/<lang>/{title,short_description,full_description}.txt
 #    store/android/images/{icon.png (512x512), feature_graphic.png (1024x500)}
-#    store/android/images/phone_screenshots/*.png (nếu có)
+#    store/android/screenshots/* (cp.sh copy từ 1config/screenshots/android; upload khi SYNC_SCREENSHOTS=1
+#      hoặc store chưa có ảnh; WebP được chuyển sang PNG)
 #    store/store.env: CONTACT_EMAIL, CONTACT_WEBSITE
 #  Dùng Google Play Developer API qua 1config/chplay (service account play-publisher).
 #  Cách dùng:  bash scripts/store-sync-android.sh [--dry-run]
@@ -42,13 +43,29 @@ for dir in "$STORE"/android/listings/*/; do
     curl -gsS -X POST -H "Authorization: Bearer $PLAY_TOKEN" -H "Content-Type: image/png" --data-binary "@$file" \
       "$UPLOAD/edits/$edit/listings/$lang/$type?uploadType=media" | grep -q '"image"' && echo "    ✔ $type" || echo "    ✖ $type" >&2
   done
-  shots=("$STORE"/android/images/phone_screenshots/*.png)
-  if [ -f "${shots[0]}" ]; then
+  # Screenshot: store/android/screenshots/ (cp.sh copy từ 1config/screenshots/android). Chỉ upload khi
+  # SYNC_SCREENSHOTS=1 (CI: file mã băm Android đổi) hoặc trang store chưa có ảnh nào.
+  remote="$(call GET "$API/edits/$edit/listings/$lang/phoneScreenshots" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("images",[])))')"
+  if [ -d "$STORE/android/screenshots" ] && { [ "${SYNC_SCREENSHOTS:-0}" = 1 ] || [ "$remote" = 0 ]; }; then
+    conv="$(mktemp -d)"
+    "${PYTHON:-python3}" - "$STORE/android/screenshots" "$conv" <<'PY'
+import os, sys
+from PIL import Image   # CI: pip install pillow
+src, out = sys.argv[1:]
+for i, f in enumerate(sorted(os.listdir(src))):
+    if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+        Image.open(os.path.join(src, f)).convert("RGB").save(os.path.join(out, f"{i:02d}.png"))  # Play: PNG/JPEG 24-bit
+PY
     call DELETE "$API/edits/$edit/listings/$lang/phoneScreenshots" >/dev/null || true
-    for f in "${shots[@]}"; do
+    n=0
+    for f in "$conv"/*.png; do
       curl -gsS -X POST -H "Authorization: Bearer $PLAY_TOKEN" -H "Content-Type: image/png" --data-binary "@$f" \
-        "$UPLOAD/edits/$edit/listings/$lang/phoneScreenshots?uploadType=media" >/dev/null && echo "    ✔ screenshot $(basename "$f")"
+        "$UPLOAD/edits/$edit/listings/$lang/phoneScreenshots?uploadType=media" | grep -q '"image"' && n=$((n + 1))
     done
+    rm -rf "$conv"
+    echo "    ✔ screenshot: $n ảnh (trước đó $remote)"
+  else
+    echo "    = screenshot giữ nguyên ($remote ảnh trên store)"
   fi
 done
 

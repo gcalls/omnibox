@@ -78,7 +78,9 @@ def main():
     if not apps:
         sys.exit(f"Chưa có app record {bundle} trên App Store Connect")
     app_id = apps[0]["id"]
-    locales = sorted(d for d in os.listdir(os.path.join(STORE, "ios")) if os.path.isdir(os.path.join(STORE, "ios", d)))
+    # Thư mục ngôn ngữ dạng vi, en-US… (bỏ qua screenshots/ và thư mục khác)
+    locales = sorted(d for d in os.listdir(os.path.join(STORE, "ios"))
+                     if os.path.isfile(os.path.join(STORE, "ios", d, "description.txt")))
     print(f"App Store Connect: {apps[0]['attributes']['name']} ({bundle}, id {app_id}) – ngôn ngữ {locales}")
 
     # ---- App Information -----------------------------------------------------------------
@@ -197,6 +199,56 @@ def main():
                 call("POST", "/v1/appStoreVersionLocalizations", {"data": {"type": "appStoreVersionLocalizations", "attributes": attrs, "relationships": {"appStoreVersion": rel("appStoreVersions", ver_id)}}})
         step(f"Mô tả phiên bản [{loc}]", version_loc)
 
+    # ---- Screenshot iPhone 6.7"/6.9" (1290x2796) ----------------------------------------------
+    # Nguồn: store/ios/screenshots/ (cp.sh copy từ 1config/screenshots/iOS). Upload khi SYNC_SCREENSHOTS=1
+    # (CI: file mã băm iOS đổi) hoặc bộ ảnh trên App Store Connect còn trống. Ảnh được đưa về đúng 1290x2796.
+    SHOT_TYPE, SHOT_SIZE = "APP_IPHONE_67", (1290, 2796)
+    shots_dir = os.path.join(STORE, "ios", "screenshots")
+
+    def screenshots():
+        import hashlib, io
+        from PIL import Image  # CI: pip install pillow
+        files = sorted(f for f in os.listdir(shots_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")))[:10]
+        imgs = []
+        for f in files:
+            im = Image.open(os.path.join(shots_dir, f)).convert("RGB")
+            if im.size[0] < SHOT_SIZE[0]:
+                print(f"    ! {f}: {im.size[0]}x{im.size[1]} nhỏ hơn {SHOT_SIZE[0]}x{SHOT_SIZE[1]} – phóng to, nên thay ảnh gốc độ phân giải cao")
+            buf = io.BytesIO(); im.resize(SHOT_SIZE, Image.LANCZOS).save(buf, "PNG"); imgs.append(buf.getvalue())
+        locs = {x["attributes"]["locale"]: x["id"] for x in call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizations")["data"]}
+        report = []
+        for loc, lid in sorted(locs.items()):
+            sets = call("GET", f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets")["data"]
+            st = next((x for x in sets if x["attributes"]["screenshotDisplayType"] == SHOT_TYPE), None)
+            old = call("GET", f"/v1/appScreenshotSets/{st['id']}/appScreenshots")["data"] if st else []
+            if os.environ.get("SYNC_SCREENSHOTS") != "1" and old:
+                report.append(f"{loc} giữ {len(old)} ảnh"); continue
+            if st is None:
+                st = call("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets",
+                          "attributes": {"screenshotDisplayType": SHOT_TYPE},
+                          "relationships": {"appStoreVersionLocalization": rel("appStoreVersionLocalizations", lid)}}})["data"]
+            for o in old:
+                call("DELETE", f"/v1/appScreenshots/{o['id']}")
+            for i, data in enumerate(imgs):
+                sc = call("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots",
+                          "attributes": {"fileName": f"{i:02d}.png", "fileSize": len(data)},
+                          "relationships": {"appScreenshotSet": rel("appScreenshotSets", st["id"])}}})["data"]
+                for op in sc["attributes"]["uploadOperations"]:
+                    part = data[op["offset"]:op["offset"] + op["length"]]
+                    req = urllib.request.Request(op["url"], data=part, method=op["method"],
+                                                 headers={h["name"]: h["value"] for h in op.get("requestHeaders", [])})
+                    urllib.request.urlopen(req).read()
+                call("PATCH", f"/v1/appScreenshots/{sc['id']}", {"data": {"type": "appScreenshots", "id": sc["id"],
+                     "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
+            report.append(f"{loc} {len(imgs)} ảnh mới")
+        return "; ".join(report)
+
+    if os.path.isdir(shots_dir) and os.listdir(shots_dir):
+        step('Screenshot iPhone 6.7"/6.9"', screenshots)
+    else:
+        print("  … Chưa có screenshot (store/ios/screenshots/ – chạy 1config/cp.sh) – App Store bắt buộc trước khi nộp duyệt")
+        FAILED.append("Screenshot iOS")
+
     # ---- App Review ------------------------------------------------------------------------------
     review = {k: IOS_ENV.get(f"APP_REVIEW_{k}", "") for k in ("FIRST_NAME", "LAST_NAME", "PHONE", "EMAIL", "DEMO_USER", "DEMO_PASSWORD", "NOTES")}
     if any(not v or "<TODO" in v for k, v in review.items() if k != "NOTES"):
@@ -240,9 +292,6 @@ def main():
         return f'email phản hồi {STORE_ENV["CONTACT_EMAIL"]}'
     step("TestFlight: thông tin beta", beta_info)
 
-    shots = os.path.join(STORE, "ios", "screenshots")
-    if not (os.path.isdir(shots) and os.listdir(shots)):
-        print("  … Chưa có screenshot (store/ios/screenshots/) – App Store bắt buộc trước khi nộp duyệt")
     print("Xong." if not FAILED else f"Còn {len(FAILED)} mục chưa xong: {FAILED}")
     return 1 if FAILED else 0
 

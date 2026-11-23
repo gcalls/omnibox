@@ -194,3 +194,7 @@ tmp/
 # Python
 __pycache__/
 *.pyc
+
+# Screenshot store copy từ 1config/screenshots bởi cp.sh (ảnh gốc chỉ nằm trong bundle mã hoá)
+/store/android/screenshots/
+/store/ios/screenshots/
