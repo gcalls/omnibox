@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Linking } from 'react-native';
 import { NativeEventEmitter, NativeModules,  } from 'react-native';
 import { View, TouchableOpacity, PanResponder, AppState } from 'react-native';
-import { SafeAreaView } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 
 
@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 
 
-import Spinner from 'react-native-loading-spinner-overlay/lib';
+import Spinner from 'react-native-loading-spinner-overlay';
 import WebView from 'react-native-webview';
 import Contact from './components/contact';
 import { requestAudioRecordPermission } from './gModules/gAndroidPermission';
@@ -34,7 +34,7 @@ import AppStateModule from './gModules/gAppStateModule';
 import {BASE_URL} from '@env'
 
 
-function App(): JSX.Element {
+function App(): React.JSX.Element {
 
   const [isVisible, setVisible] = useState(false)
 
@@ -47,7 +47,7 @@ function App(): JSX.Element {
   const [vietNamesePhoneLst, setVietNamesePhoneLst] = useState(['032', '033', '034', '035', '036', '037', '038', '039', '070', '079', '077', '076', '078', '083', '084', '085', '081', '082', '059'])
 
 
-  const webViewRef: any = useRef();
+  const webViewRef: any = useRef(null);
 
   const customHeaders = {
     'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Android SDK built for x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.185 Mobile Safari/537.36',
@@ -144,10 +144,9 @@ function App(): JSX.Element {
 
 
     if (Platform.OS === gConst.ANDROID) {
-      BackHandler.addEventListener('hardwareBackPress', onAndroidBackPress);
-      return () => {
-        BackHandler.removeEventListener('hardwareBackPress', onAndroidBackPress);
-      };
+      // RN 0.77+: BackHandler.removeEventListener đã bị gỡ – dùng subscription.remove()
+      const backSub = BackHandler.addEventListener('hardwareBackPress', onAndroidBackPress);
+      return () => backSub.remove();
     }
 
 
@@ -395,6 +394,7 @@ function App(): JSX.Element {
   // -----------------------------------------------------------------------------------
 
   return (
+    <SafeAreaProvider>
     <SafeAreaView style={{
       flex: 1,
       backgroundColor: '#673ab7',
@@ -472,7 +472,8 @@ function App(): JSX.Element {
           }}
         />
       </GestureRecognizer>
-    </SafeAreaView>);
+    </SafeAreaView>
+    </SafeAreaProvider>);
 }
 
 

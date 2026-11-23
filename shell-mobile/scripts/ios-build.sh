@@ -9,8 +9,7 @@
 #  BUILD_NUMBER  số build (CFBundleVersion); CI truyền github.run_number. Mặc định theo project.
 #
 #  Yêu cầu: macOS + Xcode; đã giải mã 1config, chạy `bash 1config/cp.sh <mode>`,
-#  `npm ci` trong src/ và `NO_FLIPPER=1 PRODUCTION=1 pod install` trong src/ios/.
-#  PRODUCTION=1 bắt buộc: thiếu nó RN 0.71 nhúng Hermes bản debug (~480 MB).
+#  `npm ci` trong src/ và `pod install` trong src/ios/ (React Native 0.88, New Architecture).
 # =====================================================================================
 set -euo pipefail
 

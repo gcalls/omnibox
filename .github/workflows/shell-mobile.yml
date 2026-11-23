@@ -170,12 +170,10 @@ jobs:
     name: iOS (IPA)
     needs: changes
     if: needs.changes.outputs.ios == 'true'
-    runs-on: macos-15
+    # Xcode 26 (iOS 26 SDK) – App Store chỉ nhận bản build bằng SDK mới nhất
+    runs-on: macos-26
     timeout-minutes: 90
     env:
-      NO_FLIPPER: "1"
-      # RN 0.71: PRODUCTION=1 → pod install tải Hermes bản release thay vì bản debug (~480 MB)
-      PRODUCTION: "1"
       BUILD_NUMBER: ${{ github.run_number }}
     defaults:
       run:
@@ -255,22 +253,20 @@ jobs:
           path: |
             shell-mobile/src/ios/Pods
             ~/Library/Caches/CocoaPods
-          key: pods-${{ runner.os }}-prod${{ env.PRODUCTION }}-noflipper${{ env.NO_FLIPPER }}-${{ hashFiles('shell-mobile/src/ios/Podfile', 'shell-mobile/src/ios/Podfile.lock', 'shell-mobile/src/package-lock.json', 'shell-mobile/src/patches/**') }}
+          key: pods-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('shell-mobile/src/ios/Podfile', 'shell-mobile/src/ios/Podfile.lock', 'shell-mobile/src/package-lock.json', 'shell-mobile/src/patches/**') }}
 
       # DerivedData: giữ phần đã biên dịch của các pod giữa các lần chạy (cùng dependency + cùng Xcode)
       - name: Cache DerivedData
         uses: actions/cache@v4
         with:
           path: shell-mobile/src/ios/build/DerivedData
-          key: dd-${{ runner.os }}-${{ steps.xcode.outputs.version }}-prod${{ env.PRODUCTION }}-${{ hashFiles('shell-mobile/src/ios/Podfile', 'shell-mobile/src/ios/Podfile.lock', 'shell-mobile/src/package-lock.json', 'shell-mobile/src/patches/**') }}
+          key: dd-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('shell-mobile/src/ios/Podfile', 'shell-mobile/src/ios/Podfile.lock', 'shell-mobile/src/package-lock.json', 'shell-mobile/src/patches/**') }}
 
       - name: Cài dependency JS + CocoaPods
         working-directory: shell-mobile/src
         run: |
           if [ "${{ steps.nm.outputs.cache-hit }}" != "true" ]; then
-            npm ci --no-audit --no-fund --ignore-scripts
-            npx patch-package
-            npx react-native setup-ios-permissions
+            npm ci --no-audit --no-fund
           fi
           cd ios && pod install
 
