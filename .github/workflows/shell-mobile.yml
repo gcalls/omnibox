@@ -329,8 +329,9 @@ jobs:
 
   store:
     name: Đồng bộ trang store
-    needs: changes
-    if: needs.changes.outputs.store == 'true' && (github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v'))
+    # Chờ job Android: Google Play chỉ cho mở một edit tại một thời điểm (upload AAB cũng dùng edit)
+    needs: [changes, android]
+    if: ${{ !cancelled() && needs.changes.outputs.store == 'true' && needs.android.result != 'failure' && (github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:

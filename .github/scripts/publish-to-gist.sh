@@ -41,36 +41,49 @@ echo "Gist: https://gist.github.com/$owner/$gist_id"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-git clone -q "https://x-access-token:${GIST_TOKEN}@gist.github.com/${gist_id}.git" "$work/gist"
-cd "$work/gist"
-git config user.name "omnibox-ci"
-git config user.email "omnibox-ci@users.noreply.github.com"
-
-names=()
-for f in "${files[@]}"; do
-  cp "$f" "./$(basename "$f")"
-  names+=("$(basename "$f")")
-done
-
-# README.md: mục lục mọi file build hiện có trong gist
-raw="https://gist.githubusercontent.com/$owner/$gist_id/raw"
-{
-  echo "# omnibox builds"
-  echo
-  echo "Tự động cập nhật bởi GitHub Actions (repo ${GITHUB_REPOSITORY:-omnibox}). Tên file: \`{branch}-{version}.{đuôi}\`."
-  echo
-  echo "| File | Dung lượng | Tải về |"
-  echo "| --- | --- | --- |"
-  for f in $(ls -1 | grep -v '^README.md$' | sort); do
-    size="$(du -h "$f" | cut -f1)"
-    echo "| \`$f\` | $size | [$raw/$f]($raw/$f) |"
-  done
-} > README.md
-
-git add -A
+names=(); for f in "${files[@]}"; do names+=("$(basename "$f")"); done
+# Chỉ giữ file của main / test / tag v* (file nhánh tạm bị xoá để gist không phình to)
+KEEP="${GIST_KEEP_REGEX:-^(main|test|v[0-9][^-]*)-}"
 msg="build: ${names[*]} (${GITHUB_REPOSITORY:-local}@${GITHUB_SHA:-$(date -u +%FT%TZ)})"
-git commit -q -m "$msg" || echo "Không có thay đổi để commit"
-git push -q origin HEAD
+
+# publish <gist_id> → 0: xong; 2: gist vượt quota dung lượng; 1: lỗi khác
+publish() {
+  local id="$1" dir="$work/gist-$1" branch out f
+  rm -rf "$dir"
+  git clone -q --depth 1 "https://x-access-token:${GIST_TOKEN}@gist.github.com/${id}.git" "$dir" || return 1
+  ( cd "$dir"
+    branch="$(git symbolic-ref --short HEAD)"
+    git config user.name "omnibox-ci"; git config user.email "omnibox-ci@users.noreply.github.com"
+    for f in "${files[@]}"; do cp "$f" "./$(basename "$f")"; done
+    for f in *; do
+      [ "$f" = README.md ] && continue
+      [[ " ${names[*]} " == *" $f "* || "$f" =~ $KEEP ]] || { git rm -q -f "$f" 2>/dev/null || rm -f "$f"; echo "  xoá file cũ $f"; }
+    done
+    raw="https://gist.githubusercontent.com/$owner/$id/raw"
+    { echo "# omnibox builds"; echo
+      echo "Tự động cập nhật bởi GitHub Actions (repo ${GITHUB_REPOSITORY:-omnibox}). Tên file: \`{branch}-{version}.{đuôi}\`."; echo
+      echo "| File | Dung lượng | Tải về |"; echo "| --- | --- | --- |"
+      for f in $(ls -1 | grep -v '^README.md$' | sort); do echo "| \`$f\` | $(du -h "$f" | cut -f1) | [$raw/$f]($raw/$f) |"; done
+    } > README.md
+    # Một commit duy nhất (không giữ lịch sử) → gist chỉ chứa bản mới nhất, không vượt quota
+    git checkout -q --orphan omnibox-latest
+    git add -A; git commit -q -m "$msg"
+    out="$(git push -q -f origin "omnibox-latest:$branch" 2>&1)" && exit 0
+    echo "$out" >&2
+    echo "$out" | grep -qi 'size quota' && exit 2
+    exit 1 )
+}
+
+rc=0; publish "$gist_id" || rc=$?
+if [ "$rc" = 2 ]; then
+  # Gist cũ vượt quota (lịch sử cũ còn lớn): đổi tên gist cũ, tạo gist mới cùng mô tả
+  gh api -X PATCH "/gists/$gist_id" -f description="$DESC (cũ – vượt quota)" >/dev/null || true
+  gist_id="$(gh api -X POST /gists -f description="$DESC" -F public=false -f 'files[README.md][content]=# omnibox builds' --jq .id)"
+  echo "::warning::Gist cũ vượt quota dung lượng – đã tạo gist mới $gist_id, link tải đổi"
+  rc=0; publish "$gist_id" || rc=$?
+fi
+[ "$rc" = 0 ] || { echo "::error::Không đăng được lên gist"; exit 1; }
+raw="https://gist.githubusercontent.com/$owner/$gist_id/raw"
 
 # Ghi link tải vào Summary của lần chạy. Việc kiểm tra tải về (gh + curl) làm ngoài CI.
 {
