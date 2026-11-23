@@ -17,17 +17,19 @@ Nơi lưu giá trị thật:
 
 ## Nội dung bundle `1config`
 
-| File trong `1config/` | Copy tới | Chứa | Nhạy cảm | Rotate gần nhất |
-| --- | --- | --- | --- | --- |
-| `env/internal.env`, `env/production.env` | `src/.env` | `BASE_URL` | Thấp | — |
-| `android/google-services.json` | `src/android/app/` | Cấu hình Firebase Android (API key cần giới hạn theo package + SHA) | Trung bình | — |
-| `android/keystore.properties` | `src/android/` | `storeFile`, `storePassword`, `keyAlias`, `keyPassword` | **Cao** | — |
-| `android/gcallsshell-key.keystore` | `src/android/app/` | Upload keystore Android | **Cao** | — |
-| `android/fastlane.env` | `src/android/fastlane/.env` | `APP_ID`, `FIREBASE_ANDROID_APP_ID`, `FIREBASE_TESTER_GROUPS` | Thấp | — |
-| `android/play-service-account.json` | `src/android/fastlane/secure/` | Service account Google Play Developer API | **Cao** | — |
-| `android/firebase-service-account.json` | `src/android/fastlane/secure/` | Service account Firebase App Distribution | **Cao** | — |
-| `ios/fastlane.env` | `src/ios/fastlane/.env` | `APPLE_TEAM_ID`, `ASC_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `TESTFLIGHT_GROUPS`, `MATCH_GIT_URL`, `MATCH_PASSWORD`, `MATCH_GIT_BASIC_AUTHORIZATION`, `APP_REVIEW_*` | **Cao** | — |
-| `ios/AuthKey.p8` | `src/ios/fastlane/secure/` | App Store Connect API key | **Cao** | — |
+| File trong `1config/` | Dùng bởi | Chứa | Nhạy cảm |
+| --- | --- | --- | --- |
+| `env/internal.env`, `env/production.env` | `cp.sh` → `src/.env` | `BASE_URL` | Thấp |
+| `android/google-services.json` | `cp.sh` → `src/android/app/` | Firebase Android (project `omnibox-515602`) | Trung bình |
+| `android/omnibox-upload.keystore` + `android/keystore.properties` | `cp.sh` → `src/android/` | Upload key Android `co.gcalls.omnibox` | **Cao** |
+| `android/app.env` | CI | `APP_ID`, `FIREBASE_ANDROID_APP_ID`, `FIREBASE_TESTER_GROUPS`, `PLAY_TRACK`, `PLAY_RELEASE_STATUS`, `PLAY_UPLOAD` | Thấp |
+| `android/play-service-account.json` | CI, `chplay/` | `play-publisher@omnibox-515602` (Google Play Developer API) | **Cao** |
+| `android/firebase-service-account.json` | CI | `firebase-app-distribution@omnibox-515602` | **Cao** |
+| `ios/GoogleService-Info.plist` | `cp.sh` → `src/ios/Gcalls/` | Firebase iOS | Trung bình |
+| `ios/app.env` | CI, `appconnect/` | `APP_ID`, `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `FIREBASE_IOS_APP_ID`, `APP_REVIEW_*` | Trung bình |
+| `ios/AuthKey.p8` | CI, `appconnect/` | App Store Connect API key (tạo bằng gad.appl6@gcalls.co) | **Cao** |
+| `ios/distribution.p12` + `ios/signing.env`, `ios/profiles/*.mobileprovision` | CI | Chứng chỉ Apple Distribution + profile (tạo bằng `appconnect/asc-signing.sh`) | **Cao** |
+| `archive/co.gcalls.shell/` | — | Bộ secret của app cũ `co.gcalls.shell` | **Cao** |
 
 ## Lịch rotate
 

@@ -5,7 +5,7 @@ import android.provider.BaseColumns;
 
 public class ContactProviderContract {
 
-    public static final String AUTHORITY = "co.gcalls.shell.provider.contactprovider";
+    public static final String AUTHORITY = co.gcalls.shell.BuildConfig.APPLICATION_ID + ".provider.contactprovider";
     public static final Uri CONTENT_URI = Uri.parse("content://" + AUTHORITY);
 
     // content://" + "co.gcalls.shell.provider.contactprovider" + "/custom_fields"

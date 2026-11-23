@@ -78,7 +78,7 @@
 
       <provider
         android:name=".provider.ContactProvider"
-        android:authorities="co.gcalls.shell.provider.contactprovider"
+        android:authorities="${applicationId}.provider.contactprovider"
         android:exported="true">
         <meta-data
             android:name="android.provider.CONTACTS_STRUCTURE"
@@ -204,7 +204,7 @@
         <data android:scheme="tel" />
          <data android:scheme="gcalls" />
         <data android:scheme="http"
-            android:host="co.gcalls.shell"/>
+            android:host="${applicationId}"/>
         <!-- <data android:scheme="sip" />
         <data android:scheme="sms" />
         <data android:scheme="mailto" />

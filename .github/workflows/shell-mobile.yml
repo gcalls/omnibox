@@ -2,13 +2,17 @@
 #  CI/CD riêng cho dự án shell-mobile trong monorepo omnibox (không dùng fastlane).
 #
 #  Chạy khi push/merge vào main hoặc test VÀ có thay đổi trong shell-mobile/:
-#    shell-mobile/src/android/**  → build Android (.apk)
-#    shell-mobile/src/ios/**      → build iOS (.ipa không ký)
+#    shell-mobile/src/android/**  → build Android (APK + AAB)
+#    shell-mobile/src/ios/**      → build iOS (IPA; ký App Store nếu 1config có bộ ký)
 #    shell-mobile/src/** khác, shell-mobile/1config.tar.gpg → build cả hai
 #  (chi tiết: shell-mobile/scripts/ci-detect-changes.sh)
 #
 #  Tên file: {branch}-{version}.{apk|ipa}. File được đăng lên gist chung "omnibox builds".
 #  Cấu hình: main → `1config/cp.sh production`, test/khác → `1config/cp.sh internal`.
+#  Nhánh main còn phát hành (Marketplace actions, đọc credential trực tiếp từ 1config đã giải mã):
+#    Android → Firebase App Distribution (wzieba/Firebase-Distribution-Github-Action)
+#            → Google Play, track PLAY_TRACK trong 1config/android/app.env (r0adkll/upload-google-play)
+#    iOS     → TestFlight (apple-actions/import-codesign-certs + apple-actions/upload-testflight-build)
 #
 #  Secrets (Settings → Secrets and variables → Actions → Repository secrets):
 #    ONECONFIG_GPG_PASSPHRASE  passphrase giải mã shell-mobile/1config.tar.gpg
@@ -62,11 +66,13 @@ jobs:
         run: bash shell-mobile/scripts/ci-detect-changes.sh
 
   android:
-    name: Android (.apk)
+    name: Android (APK + AAB)
     needs: changes
     if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      VERSION_CODE: ${{ github.run_number }}   # versionCode tăng theo mỗi lần chạy (Google Play bắt buộc)
     defaults:
       run:
         working-directory: shell-mobile
@@ -94,6 +100,15 @@ jobs:
               --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
           bash 1config/cp.sh "$CONFIG_MODE"
 
+      # Biến không bí mật từ 1config/android/app.env (APP_ID, FIREBASE_ANDROID_APP_ID, PLAY_TRACK, …)
+      - name: Đọc 1config/android/app.env
+        id: cfg
+        run: |
+          while IFS='=' read -r k v; do
+            [[ "$k" =~ ^[A-Z_]+$ ]] && echo "$(echo "$k" | tr 'A-Z' 'a-z')=$v" >> "$GITHUB_OUTPUT"
+          done < <(grep -E '^[A-Z_]+=' 1config/android/app.env)
+          [ -f 1config/android/play-service-account.json ] && echo "has_play=true" >> "$GITHUB_OUTPUT" || echo "has_play=false" >> "$GITHUB_OUTPUT"
+
       - name: Cache node_modules
         id: nm
         uses: actions/cache@v4
@@ -106,14 +121,16 @@ jobs:
         working-directory: shell-mobile/src
         run: npm ci --no-audit --no-fund
 
-      - name: Build APK (Gradle, không fastlane)
+      - name: Build APK + AAB (Gradle)
+        id: build
         working-directory: shell-mobile/src/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
           mkdir -p ../../dist
-          cp app/build/outputs/apk/release/*.apk ../../dist/
+          cp app/build/outputs/apk/release/*.apk app/build/outputs/bundle/release/*.aab ../../dist/
           ls -la ../../dist
+          echo "apk=$(cd ../../dist && ls -1 "$PWD"/*.apk | head -n1)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v5
         with:
@@ -122,6 +139,27 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # ---- Chỉ nhánh main: phát hành cho tester và lên Google Play --------------------------
+      - name: Firebase App Distribution (APK)
+        if: github.ref_name == 'main'
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ steps.cfg.outputs.firebase_android_app_id }}
+          serviceCredentialsFile: shell-mobile/1config/android/firebase-service-account.json
+          groups: ${{ steps.cfg.outputs.firebase_tester_groups }}
+          file: ${{ steps.build.outputs.apk }}
+          releaseNotes: "${{ github.ref_name }}@${{ github.sha }} (versionCode ${{ github.run_number }})"
+
+      - name: Google Play (AAB → track ${{ steps.cfg.outputs.play_track }})
+        if: github.ref_name == 'main' && steps.cfg.outputs.has_play == 'true' && steps.cfg.outputs.play_upload == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: shell-mobile/1config/android/play-service-account.json
+          packageName: ${{ steps.cfg.outputs.app_id }}
+          releaseFiles: shell-mobile/dist/*.aab
+          track: ${{ steps.cfg.outputs.play_track }}
+          status: ${{ steps.cfg.outputs.play_release_status }}
+
       - name: Dọn cấu hình đã giải mã
         if: always()
         run: |
@@ -129,15 +167,16 @@ jobs:
           rm -rf 1config
 
   ios:
-    name: iOS (.ipa không ký)
+    name: iOS (IPA)
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-15
     timeout-minutes: 90
     env:
       NO_FLIPPER: "1"
-      # RN 0.71: PRODUCTION=1 → pod install tải Hermes bản release (vài MB) thay vì bản debug (~480 MB)
+      # RN 0.71: PRODUCTION=1 → pod install tải Hermes bản release thay vì bản debug (~480 MB)
       PRODUCTION: "1"
+      BUILD_NUMBER: ${{ github.run_number }}
     defaults:
       run:
         working-directory: shell-mobile
@@ -149,9 +188,7 @@ jobs:
         id: xcode
         run: |
           echo "version=$(xcodebuild -version | head -1 | tr -d ' ')" >> "$GITHUB_OUTPUT"
-          xcode-select -p
           xcodebuild -version
-          xcodebuild -showsdks | grep -i iphoneos
 
       - uses: actions/setup-node@v5
         with:
@@ -167,6 +204,43 @@ jobs:
           gpg --batch --yes --quiet --pinentry-mode loopback --decrypt \
               --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
           bash 1config/cp.sh "$CONFIG_MODE"
+
+      # Có đủ bộ ký trong 1config (tạo bằng 1config/appconnect/asc-signing.sh) thì build bản ký App Store,
+      # không thì build IPA không ký như trước.
+      - name: Kiểm tra bộ ký iOS trong 1config
+        id: sign
+        run: |
+          d=1config/ios; ok=true
+          for f in AuthKey.p8 distribution.p12 signing.env profiles/omnibox-appstore.mobileprovision; do
+            [ -f "$d/$f" ] || { echo "thiếu $d/$f"; ok=false; }
+          done
+          grep -q '^ASC_KEY_ID=<TODO' $d/app.env && { echo "ASC_KEY_ID chưa điền"; ok=false; }
+          echo "signed=$ok" >> "$GITHUB_OUTPUT"
+          if [ "$ok" = true ]; then
+            P12_PASSWORD="$(sed -n 's/^P12_PASSWORD=//p' $d/signing.env)"; echo "::add-mask::$P12_PASSWORD"
+            P12_B64="$(base64 < $d/distribution.p12 | tr -d '\n')"; echo "::add-mask::$P12_B64"
+            { echo "p12_password=$P12_PASSWORD"; echo "p12_b64=$P12_B64"
+              echo "asc_key_id=$(sed -n 's/^ASC_KEY_ID=//p' $d/app.env)"
+              echo "asc_issuer_id=$(sed -n 's/^ASC_ISSUER_ID=//p' $d/app.env)"
+              echo "asc_key<<ASC_KEY_EOF"; cat $d/AuthKey.p8; echo; echo "ASC_KEY_EOF"; } >> "$GITHUB_OUTPUT"
+            # App record trên App Store Connect (API không tạo được – phải tạo tay) quyết định có upload TestFlight
+            app_id="$(sed -n 's/^APP_ID=//p' $d/app.env)"
+            n="$(bash 1config/appconnect/asc-api.sh GET "/v1/apps?filter[bundleId]=$app_id&fields[apps]=bundleId" | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("data",[])))')"
+            [ "$n" -gt 0 ] && echo "has_app=true" >> "$GITHUB_OUTPUT" || { echo "has_app=false" >> "$GITHUB_OUTPUT"; echo "::warning::Chưa có app record $app_id trên App Store Connect – bỏ qua upload TestFlight"; }
+            mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+            for p in $d/profiles/*.mobileprovision; do
+              uuid="$(security cms -D -i "$p" | plutil -extract UUID raw -o - -)"
+              cp "$p" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+              echo "đã cài profile $(basename "$p") ($uuid)"
+            done
+          fi
+
+      - name: Nạp chứng chỉ Apple Distribution vào keychain
+        if: steps.sign.outputs.signed == 'true'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ steps.sign.outputs.p12_b64 }}
+          p12-password: ${{ steps.sign.outputs.p12_password }}
 
       - name: Cache node_modules
         id: nm
@@ -200,8 +274,13 @@ jobs:
           fi
           cd ios && pod install
 
-      - name: Build IPA (xcodebuild, không fastlane)
-        run: OUT_DIR="$PWD/dist" bash scripts/ios-build-unsigned.sh
+      - name: Build IPA (xcodebuild, ${{ steps.sign.outputs.signed == 'true' && 'ký App Store' || 'không ký' }})
+        id: build
+        env:
+          SIGNED: ${{ steps.sign.outputs.signed == 'true' && '1' || '0' }}
+        run: |
+          OUT_DIR="$PWD/dist" bash scripts/ios-build.sh
+          echo "ipa=$(ls -1 "$PWD"/dist/*.ipa | head -n1)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v5
         with:
@@ -209,6 +288,16 @@ jobs:
           path: shell-mobile/dist/*.ipa
           if-no-files-found: error
           retention-days: 7
+
+      # ---- Chỉ nhánh main + đã có bộ ký: upload lên TestFlight -------------------------------
+      - name: Upload TestFlight
+        if: github.ref_name == 'main' && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: ${{ steps.build.outputs.ipa }}
+          issuer-id: ${{ steps.sign.outputs.asc_issuer_id }}
+          api-key-id: ${{ steps.sign.outputs.asc_key_id }}
+          api-private-key: ${{ steps.sign.outputs.asc_key }}
 
       - name: Dọn cấu hình đã giải mã
         if: always()

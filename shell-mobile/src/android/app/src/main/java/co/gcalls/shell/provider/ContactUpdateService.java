@@ -64,7 +64,7 @@ public class ContactUpdateService extends Service {
 
         // Query the provider for the contacts
         Cursor cursor = contentResolver.query(
-                Uri.parse("content://" + "co.gcalls.shell.provider.contactprovider" + "/contacts"),
+                Uri.parse("content://" + co.gcalls.shell.provider.ContactProviderContract.AUTHORITY + "/contacts"),
                 null,
                 null,
                 null,

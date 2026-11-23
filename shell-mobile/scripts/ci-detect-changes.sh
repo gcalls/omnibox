@@ -4,7 +4,7 @@
 #
 #  Quy tắc (đường dẫn tính từ gốc repo omnibox):
 #    shell-mobile/src/android/**                    → Android
-#    shell-mobile/src/ios/**, shell-mobile/scripts/ios-build-unsigned.sh → iOS
+#    shell-mobile/src/ios/**, shell-mobile/scripts/ios-build.sh → iOS
 #    shell-mobile/src/** còn lại (JS, package.json…) → cả hai (code dùng chung)
 #    shell-mobile/1config.tar.gpg                   → cả hai (cấu hình dùng chung)
 #    còn lại (docs, README…)                        → không build
@@ -39,7 +39,7 @@ else
     echo "  $f"
     case "$f" in
       shell-mobile/src/android/*)                     android=true ;;
-      shell-mobile/src/ios/*|shell-mobile/scripts/ios-build-unsigned.sh) ios=true ;;
+      shell-mobile/src/ios/*|shell-mobile/scripts/ios-build.sh) ios=true ;;
       shell-mobile/src/*|shell-mobile/1config.tar.gpg) android=true; ios=true ;;
     esac
   done < <(git diff --name-only "$BEFORE" "$AFTER" -- shell-mobile)

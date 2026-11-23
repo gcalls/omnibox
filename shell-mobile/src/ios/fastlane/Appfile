@@ -1,9 +1,0 @@
-# Giá trị lấy từ src/ios/fastlane/.env (copy bởi 1config/cp.sh) hoặc biến môi trường CI.
-# Xác thực dùng App Store Connect API key (ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_PATH),
-# không dùng apple_id cá nhân.
-app_identifier(ENV.fetch("APP_ID", "co.gcalls.shell")) # Bundle identifier
-itc_team_id(ENV["ASC_TEAM_ID"])                        # App Store Connect Team ID
-team_id(ENV["APPLE_TEAM_ID"])                          # Developer Portal Team ID
-
-# For more information about the Appfile, see:
-#     https://docs.fastlane.tools/advanced/#appfile

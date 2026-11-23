@@ -11,7 +11,7 @@ public class AccountGeneral {
     /**
      * Account type id
      */
-    public static final String ACCOUNT_TYPE = "co.gcalls.shell.contacts";
+    public static final String ACCOUNT_TYPE = co.gcalls.shell.BuildConfig.APPLICATION_ID + ".contacts";
     public static final String ACCOUNT_NAME = "SyncAdapter ( Beta ) ";
     public static final String ACCOUNT_TOKEN = "12345";
     /**

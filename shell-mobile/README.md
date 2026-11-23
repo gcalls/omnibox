@@ -8,11 +8,11 @@
 .
 ├── 1config.tar.gpg      # cấu hình + chứng chỉ build đã mã hoá (gpg AES256); bản rõ 1config/ không bao giờ commit
 ├── docs/                # tài liệu dự án (SECRETS.md: danh mục secret, không chứa giá trị)
-├── scripts/           # ci-detect-changes.sh, ios-build-unsigned.sh
+├── scripts/           # ci-detect-changes.sh, ios-build.sh
 └── src/                 # mã nguồn React Native
     ├── App.tsx
-    ├── android/         # project Android + fastlane
-    └── ios/             # project Xcode + fastlane
+    ├── android/         # project Android (Gradle)
+    └── ios/             # project Xcode
 ```
 
 ## Yêu cầu môi trường
@@ -45,7 +45,7 @@ Các phiên bản trên sẽ được nâng cùng đợt nâng cấp React Nativ
    ```bash
    cd src
    npm install
-   (cd ios && bundle install && bundle exec pod install)   # chỉ trên macOS
+   (cd ios && NO_FLIPPER=1 PRODUCTION=1 pod install)        # chỉ trên macOS
    npm run android      # hoặc: npm run ios
    ```
 
@@ -68,7 +68,12 @@ Workflow [`.github/workflows/shell-mobile.yml`](../.github/workflows/shell-mobil
 - Có thể chạy tay: Actions → shell-mobile → Run workflow.
 - Secret cần có: `ONECONFIG_GPG_PASSPHRASE`, `GIST_TOKEN` (xem [docs/SECRETS.md](docs/SECRETS.md)).
 
-Các lane fastlane (`src/android/fastlane`, `src/ios/fastlane`) vẫn giữ để phát hành lên store khi bundle `1config` có đủ keystore, chứng chỉ và service account.
+Nhánh `main` còn phát hành bằng GitHub Marketplace actions (không fastlane):
+
+- Android → Firebase App Distribution (`wzieba/Firebase-Distribution-Github-Action`) và Google Play (`r0adkll/upload-google-play`, bật bằng `PLAY_UPLOAD=true` trong `1config/android/app.env`).
+- iOS → TestFlight (`apple-actions/import-codesign-certs`, `apple-actions/upload-testflight-build`) khi `1config/ios/` có bộ ký do `1config/appconnect/asc-signing.sh` tạo.
+
+Quản lý từ terminal: `1config/chplay/` (Google Play Developer API), `1config/appconnect/` (App Store Connect API).
 
 ## Bảo mật
 

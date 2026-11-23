@@ -19,7 +19,7 @@ public class ContactProvider extends ContentProvider {
     private static final int CUSTOM_FIELDS = 3;
     private static final int CUSTOM_FIELD_ID = 4;
     private static final int CONTACTS_WITH_CUSTOM_FIELDS = 5;
-    private static final String AUTHORITY = "co.gcalls.shell.provider.contactprovider";
+    private static final String AUTHORITY = ContactProviderContract.AUTHORITY;
     private static final String BASE_PATH = "contacts";
     private static final String CUSTOM_FIELDS_BASE_PATH = "custom_fields";
     public static final Uri CONTENT_URI = Uri.parse("content://" + AUTHORITY + "/" + BASE_PATH);
