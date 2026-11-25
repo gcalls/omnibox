@@ -6,6 +6,7 @@
 #    store/android/screenshots/* (cp.sh copy từ 1config/screenshots/android; upload khi SYNC_SCREENSHOTS=1
 #      hoặc store chưa có ảnh; WebP được chuyển sang PNG)
 #    store/store.env: CONTACT_EMAIL, CONTACT_WEBSITE
+#    store/android/data_safety.csv: khai báo Data safety (scripts/play-data-safety.py)
 #  Dùng Google Play Developer API qua 1config/chplay (service account play-publisher).
 #  Cách dùng:  bash scripts/store-sync-android.sh [--dry-run]
 # =====================================================================================
@@ -70,5 +71,7 @@ PY
 done
 
 if [ "$DRY" = 1 ]; then echo "--dry-run: không commit (edit bị huỷ)"; exit 0; fi
+# Data safety: API riêng (không thuộc edit), gửi lại mỗi lần (ghi đè, idempotent)
+python3 -I "$ROOT/scripts/play-data-safety.py"
 # changesNotSentForReview=false: thay đổi được gửi duyệt cùng bản phát hành kế tiếp
 if call POST "$API/edits/$edit:commit" >/dev/null; then committed=1; echo "✔ Đã lưu trang Google Play"; else exit 1; fi

@@ -199,52 +199,54 @@ def main():
                 call("POST", "/v1/appStoreVersionLocalizations", {"data": {"type": "appStoreVersionLocalizations", "attributes": attrs, "relationships": {"appStoreVersion": rel("appStoreVersions", ver_id)}}})
         step(f"Mô tả phiên bản [{loc}]", version_loc)
 
-    # ---- Screenshot iPhone 6.7"/6.9" (1290x2796) ----------------------------------------------
+    # ---- Screenshot iPhone: ô "6.9" Display" (API: APP_IPHONE_67) + ô 6.5" -----------------------
     # Nguồn: store/ios/screenshots/ (cp.sh copy từ 1config/screenshots/iOS). Upload khi SYNC_SCREENSHOTS=1
     # (CI: file mã băm iOS đổi) hoặc bộ ảnh trên App Store Connect còn trống. Ảnh được đưa về đúng 1290x2796.
-    SHOT_TYPE, SHOT_SIZE = "APP_IPHONE_67", (1290, 2796)
+    SHOT_SETS = [("APP_IPHONE_67", (1290, 2796)), ("APP_IPHONE_65", (1284, 2778))]
     shots_dir = os.path.join(STORE, "ios", "screenshots")
 
     def screenshots():
         import hashlib, io
         from PIL import Image  # CI: pip install pillow
         files = sorted(f for f in os.listdir(shots_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")))[:10]
-        imgs = []
-        for f in files:
-            im = Image.open(os.path.join(shots_dir, f)).convert("RGB")
-            if im.size[0] < SHOT_SIZE[0]:
-                print(f"    ! {f}: {im.size[0]}x{im.size[1]} nhỏ hơn {SHOT_SIZE[0]}x{SHOT_SIZE[1]} – phóng to, nên thay ảnh gốc độ phân giải cao")
-            buf = io.BytesIO(); im.resize(SHOT_SIZE, Image.LANCZOS).save(buf, "PNG"); imgs.append(buf.getvalue())
+        srcs = [Image.open(os.path.join(shots_dir, f)).convert("RGB") for f in files]
+        for f, im in zip(files, srcs):
+            if im.size[0] < 1290:
+                print(f"    ! {f}: {im.size[0]}x{im.size[1]} nhỏ – phóng to, nên thay ảnh gốc độ phân giải cao")
         locs = {x["attributes"]["locale"]: x["id"] for x in call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizations")["data"]}
         report = []
-        for loc, lid in sorted(locs.items()):
-            sets = call("GET", f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets")["data"]
-            st = next((x for x in sets if x["attributes"]["screenshotDisplayType"] == SHOT_TYPE), None)
-            old = call("GET", f"/v1/appScreenshotSets/{st['id']}/appScreenshots")["data"] if st else []
-            if os.environ.get("SYNC_SCREENSHOTS") != "1" and old:
-                report.append(f"{loc} giữ {len(old)} ảnh"); continue
-            if st is None:
-                st = call("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets",
-                          "attributes": {"screenshotDisplayType": SHOT_TYPE},
-                          "relationships": {"appStoreVersionLocalization": rel("appStoreVersionLocalizations", lid)}}})["data"]
-            for o in old:
-                call("DELETE", f"/v1/appScreenshots/{o['id']}")
-            for i, data in enumerate(imgs):
-                sc = call("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots",
-                          "attributes": {"fileName": f"{i:02d}.png", "fileSize": len(data)},
-                          "relationships": {"appScreenshotSet": rel("appScreenshotSets", st["id"])}}})["data"]
-                for op in sc["attributes"]["uploadOperations"]:
-                    part = data[op["offset"]:op["offset"] + op["length"]]
-                    req = urllib.request.Request(op["url"], data=part, method=op["method"],
-                                                 headers={h["name"]: h["value"] for h in op.get("requestHeaders", [])})
-                    urllib.request.urlopen(req).read()
-                call("PATCH", f"/v1/appScreenshots/{sc['id']}", {"data": {"type": "appScreenshots", "id": sc["id"],
-                     "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
-            report.append(f"{loc} {len(imgs)} ảnh mới")
+        for shot_type, size in SHOT_SETS:
+            imgs = []
+            for im in srcs:
+                buf = io.BytesIO(); im.resize(size, Image.LANCZOS).save(buf, "PNG"); imgs.append(buf.getvalue())
+            for loc, lid in sorted(locs.items()):
+                sets = call("GET", f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets")["data"]
+                st = next((x for x in sets if x["attributes"]["screenshotDisplayType"] == shot_type), None)
+                old = call("GET", f"/v1/appScreenshotSets/{st['id']}/appScreenshots")["data"] if st else []
+                if os.environ.get("SYNC_SCREENSHOTS") != "1" and old:
+                    report.append(f"{shot_type} {loc} giữ {len(old)}"); continue
+                if st is None:
+                    st = call("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets",
+                              "attributes": {"screenshotDisplayType": shot_type},
+                              "relationships": {"appStoreVersionLocalization": rel("appStoreVersionLocalizations", lid)}}})["data"]
+                for o in old:
+                    call("DELETE", f"/v1/appScreenshots/{o['id']}")
+                for i, data in enumerate(imgs):
+                    sc = call("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots",
+                              "attributes": {"fileName": f"{i:02d}.png", "fileSize": len(data)},
+                              "relationships": {"appScreenshotSet": rel("appScreenshotSets", st["id"])}}})["data"]
+                    for op in sc["attributes"]["uploadOperations"]:
+                        part = data[op["offset"]:op["offset"] + op["length"]]
+                        req = urllib.request.Request(op["url"], data=part, method=op["method"],
+                                                     headers={h["name"]: h["value"] for h in op.get("requestHeaders", [])})
+                        urllib.request.urlopen(req).read()
+                    call("PATCH", f"/v1/appScreenshots/{sc['id']}", {"data": {"type": "appScreenshots", "id": sc["id"],
+                         "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
+                report.append(f"{shot_type} {loc} {len(imgs)} ảnh mới")
         return "; ".join(report)
 
     if os.path.isdir(shots_dir) and os.listdir(shots_dir):
-        step('Screenshot iPhone 6.7"/6.9"', screenshots)
+        step('Screenshot iPhone 6.9" + 6.5"', screenshots)
     else:
         print("  … Chưa có screenshot (store/ios/screenshots/ – chạy 1config/cp.sh) – App Store bắt buộc trước khi nộp duyệt")
         FAILED.append("Screenshot iOS")
@@ -278,6 +280,17 @@ def main():
                                                        "relationships": {"app": rel("apps", app_id)}}})["data"]
         return "nhóm nội bộ, nhận mọi build"
     step("TestFlight: nhóm Omnibox Internal", internal_group)
+
+    def beta_review():
+        if any(not v or "<TODO" in v for k, v in review.items() if k != "NOTES"):
+            raise RuntimeError("thiếu APP_REVIEW_* trong 1config/ios/app.env")
+        cur = call("GET", f"/v1/apps/{app_id}/betaAppReviewDetail")["data"]
+        call("PATCH", f"/v1/betaAppReviewDetails/{cur['id']}", {"data": {"type": "betaAppReviewDetails", "id": cur["id"], "attributes": {
+             "contactFirstName": review["FIRST_NAME"], "contactLastName": review["LAST_NAME"], "contactPhone": review["PHONE"],
+             "contactEmail": review["EMAIL"], "demoAccountName": review["DEMO_USER"], "demoAccountPassword": review["DEMO_PASSWORD"],
+             "demoAccountRequired": True, "notes": review["NOTES"]}}})
+        return f'{review["FIRST_NAME"]} {review["LAST_NAME"]}, {review["EMAIL"]}'
+    step("TestFlight: thông tin duyệt beta", beta_review)
 
     def beta_info():
         cur = {x["attributes"]["locale"]: x["id"] for x in call("GET", f"/v1/apps/{app_id}/betaAppLocalizations")["data"]}
