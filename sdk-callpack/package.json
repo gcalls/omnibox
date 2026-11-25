@@ -1,0 +1,72 @@
+{
+  "name": "@gcalls/web-sdk",
+  "version": "1.1.38",
+  "description": "Gcalls Web SDK for voice call integration and call log synchronization",
+  "main": "build/index.js",
+  "scripts": {
+    "dev": "watch 'npm run build' src",
+    "test": "mocha --recursive ./src/test --timeout 10000 --require @babel/register",
+    "build": "babel src -d build --ignore '**/*.test.js'",
+    "start-publish": "npm run build && npm version patch &&  npm publish",
+    "prepare": "node -e \"if (require('fs').existsSync('.git')) try { require('child_process').execSync('husky install') } catch {}\"",
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:patch": "standard-version --release-as patch",
+    "release:major": "standard-version --release-as major",
+    "compress": "webpack build --config ./webpack.config.js",
+    "commit": "git-cz"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@commitlint/cli": "^13.1.0",
+    "@commitlint/config-conventional": "^13.1.0",
+    "chai": "^4.3.4",
+    "cz-conventional-changelog": "^3.3.0",
+    "jssip": "^3.8.0",
+    "mocha": "^9.1.1",
+    "pouchdb": "^7.2.2",
+    "pouchdb-find": "^7.2.2",
+    "terser-webpack-plugin": "^5.3.1",
+    "webpack-encoding-plugin": "^0.3.1"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.14.8",
+    "@babel/core": "^7.15.0",
+    "@babel/plugin-transform-runtime": "^7.15.0",
+    "@babel/preset-env": "^7.15.0",
+    "@babel/register": "^7.15.3",
+    "@babel/runtime": "^7.15.3",
+    "husky": "^7.0.0",
+    "standard-version": "^9.3.1",
+    "watch": "^1.0.2",
+    "webpack": "^5.66.0",
+    "webpack-cli": "^4.9.1"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "keywords": [
+    "gcalls",
+    "sip",
+    "webrtc",
+    "jssip",
+    "couchdb",
+    "pouchdb",
+    "sdk"
+  ],
+  "author": "Gcalls <support@gcalls.co>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gcalls/omnibox.git",
+    "directory": "sdk-callpack"
+  },
+  "bugs": {
+    "url": "https://github.com/gcalls/omnibox/issues"
+  },
+  "homepage": "https://github.com/gcalls/omnibox/tree/main/sdk-callpack#readme"
+}

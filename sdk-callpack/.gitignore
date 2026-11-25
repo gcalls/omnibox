@@ -1,0 +1,85 @@
+# =====================================================================================
+#  .gitignore – sdk-callpack (public package in omnibox)
+#  Principle: never commit plaintext secrets, credentials, tokens, build/IDE/OS files.
+#  Secrets may only be committed inside the encrypted bundle 1config.tar.gpg.
+# =====================================================================================
+
+# -------------------------------------------------------------------------------------
+# 1config – encrypted configuration & publishing credentials (see 1config/README.md)
+# -------------------------------------------------------------------------------------
+/1config/
+/1config.tar
+/1config.tar.gz
+/1config.zip
+# Only the GPG-encrypted bundle is allowed in git
+!/1config.tar.gpg
+!/1config.tar.gz.gpg
+
+# -------------------------------------------------------------------------------------
+# 1config – files copied to project root by 1config/cp.sh | cp.ps1
+# (keep synchronized with MAP in cp.sh / cp.ps1)
+# -------------------------------------------------------------------------------------
+/.env
+/.npmrc
+
+# -------------------------------------------------------------------------------------
+# Internal planning documents (not for public release)
+# -------------------------------------------------------------------------------------
+/plan.md
+*.docx
+*.xlsx
+*.pptx
+
+# -------------------------------------------------------------------------------------
+# Secrets, keys, certificates & tokens – in any directory
+# -------------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.key
+*.p12
+*.p8
+*.cer
+*.crt
+*.der
+apikey.json
+*service-account*.json
+*-key.json
+
+# -------------------------------------------------------------------------------------
+# Dependencies & build artifacts
+# -------------------------------------------------------------------------------------
+node_modules/
+build/
+dist/
+package-lock.json
+coverage/
+
+# -------------------------------------------------------------------------------------
+# Logs & temporary files
+# -------------------------------------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+logs/
+tmp/
+*.tmp
+
+# -------------------------------------------------------------------------------------
+# OS & IDE
+# -------------------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
