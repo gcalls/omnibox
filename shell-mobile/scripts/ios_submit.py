@@ -48,7 +48,7 @@ def main():
         sys.exit("Metadata App Store chưa đủ (xem ✖ ở trên) – chưa nộp duyệt")
     shots = os.path.join(s.STORE, "ios", "screenshots")
     if not (os.path.isdir(shots) and os.listdir(shots)):
-        print("CẢNH BÁO: store/ios/screenshots/ trống – Apple sẽ từ chối nếu phiên bản chưa có screenshot trên App Store Connect")
+        print("CẢNH BÁO: 1config/store/ios/screenshots/ trống – Apple sẽ từ chối nếu phiên bản chưa có screenshot trên App Store Connect")
 
     # 4. Gắn build + nộp duyệt
     vers = s.call("GET", f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=IOS&filter[versionString]={a.version}")["data"]

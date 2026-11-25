@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""store_sync_ios.py – đồng bộ App Store Connect từ shell-mobile/store/ (không fastlane).
+"""store_sync_ios.py – đồng bộ App Store Connect từ shell-mobile/1config/store/ (không fastlane).
 
 Điền qua App Store Connect API (key trong 1config/ios, token qua 1config/appconnect/env.sh):
   • App Information: danh mục, tên/phụ đề/URL chính sách theo ngôn ngữ, khai báo bản quyền nội dung
@@ -14,7 +14,7 @@ Mục nào API từ chối sẽ được báo "✖" và chạy tiếp; script th
 import argparse, json, os, subprocess, sys, urllib.error, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STORE = os.path.join(ROOT, "store")
+STORE = os.path.join(ROOT, "1config", "store")
 API = "https://api.appstoreconnect.apple.com"
 FAILED = []
 
@@ -87,6 +87,11 @@ def main():
     infos = call("GET", f"/v1/apps/{app_id}/appInfos")["data"]
     info = next((i for i in infos if i["attributes"].get("state") not in ("READY_FOR_DISTRIBUTION", "REPLACED_WITH_NEW_INFO")), infos[0])
     info_id = info["id"]
+    # App Information chỉ sửa được khi phiên bản chưa nộp / bị từ chối; đang chờ hoặc đang duyệt thì khoá.
+    INFO_EDITABLE = ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY")
+    info_locked = info["attributes"].get("state") not in INFO_EDITABLE
+    if info_locked:
+        print(f'  = App Information đang khoá ({info["attributes"].get("state")}) – bỏ qua danh mục, tên/phụ đề, xếp hạng tuổi')
 
     def categories():
         rels = {"primaryCategory": rel("appCategories", STORE_ENV["IOS_PRIMARY_CATEGORY"])}
@@ -94,7 +99,8 @@ def main():
             rels["secondaryCategory"] = rel("appCategories", STORE_ENV["IOS_SECONDARY_CATEGORY"])
         call("PATCH", f"/v1/appInfos/{info_id}", {"data": {"type": "appInfos", "id": info_id, "relationships": rels}})
         return f'{STORE_ENV["IOS_PRIMARY_CATEGORY"]} / {STORE_ENV.get("IOS_SECONDARY_CATEGORY")}'
-    step("Danh mục", categories)
+    if not info_locked:
+        step("Danh mục", categories)
 
     existing = {x["attributes"]["locale"]: x["id"] for x in call("GET", f"/v1/appInfos/{info_id}/appInfoLocalizations")["data"]}
     for loc in locales:
@@ -114,7 +120,8 @@ def main():
                 attrs["locale"] = loc
                 call("POST", "/v1/appInfoLocalizations", {"data": {"type": "appInfoLocalizations", "attributes": attrs, "relationships": {"appInfo": rel("appInfos", info_id)}}})
             return attrs.get("subtitle")
-        step(f"App Information [{loc}]", info_loc)
+        if not info_locked:
+            step(f"App Information [{loc}]", info_loc)
 
     def content_rights():
         call("PATCH", f"/v1/apps/{app_id}", {"data": {"type": "apps", "id": app_id, "attributes": {"contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"}}})
@@ -137,11 +144,14 @@ def main():
         call("PATCH", f"/v1/ageRatingDeclarations/{ar['id']}", {"data": {"type": "ageRatingDeclarations", "id": ar["id"], "attributes": attrs}})
         unknown = sorted(set(present) - set(attrs) - {"kidsAgeBand", "ageRatingOverride", "ageRatingOverrideV2", "koreaAgeRatingOverride", "developerAgeRatingInfoUrl", "gracRatingClassificationNumber"})
         return f"{len(attrs)} câu hỏi = không" + (f"; câu hỏi mới chưa trả lời: {unknown}" if unknown else "")
-    step("Xếp hạng độ tuổi", age_rating)
+    if not info_locked:
+        step("Xếp hạng độ tuổi", age_rating)
 
     # ---- Giá + quốc gia ------------------------------------------------------------------------
     def price_free():
         cur = call("GET", f"/v1/apps/{app_id}/appPriceSchedule", ok_status={404})
+        if cur and cur.get("data"):
+            return "giữ lịch giá hiện tại (chỉ tạo khi chưa có)"
         points = call("GET", f"/v1/apps/{app_id}/appPricePoints?filter[territory]=USA&limit=200")["data"]
         free = next(p for p in points if float(p["attributes"]["customerPrice"]) == 0)
         call("POST", "/v1/appPriceSchedules", {
@@ -150,19 +160,34 @@ def main():
                 "manualPrices": {"data": [{"type": "appPrices", "id": "${free}"}]}}},
             "included": [{"type": "appPrices", "id": "${free}", "attributes": {"startDate": None},
                           "relationships": {"appPricePoint": rel("appPricePoints", free["id"])}}]})
-        return "miễn phí" + (" (ghi đè lịch giá cũ)" if cur else "")
+        return "miễn phí (tạo mới)"
     step("Giá", price_free)
 
+    EXCLUDED = {t.strip() for t in STORE_ENV.get("IOS_EXCLUDED_TERRITORIES", "").split(",") if t.strip()}
+
     def availability():
-        terr = [t["id"] for t in call("GET", "/v1/territories?limit=200")["data"]]
-        inc = [{"type": "territoryAvailabilities", "id": f"${{{t}}}", "attributes": {"available": True},
-                "relationships": {"territory": rel("territories", t)}} for t in terr]
-        call("POST", "/v2/appAvailabilities", {
-            "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": True},
-                     "relationships": {"app": rel("apps", app_id),
-                                       "territoryAvailabilities": {"data": [{"type": "territoryAvailabilities", "id": x["id"]} for x in inc]}}},
-            "included": inc}, ok_status={409})
-        return f"{len(terr)} quốc gia"
+        cur = call("GET", f"/v1/apps/{app_id}/appAvailabilityV2", ok_status={404})
+        if not cur or not cur.get("data"):  # chưa có → tạo mới: mọi nước trừ EXCLUDED
+            terr = [t["id"] for t in call("GET", "/v1/territories?limit=200")["data"]]
+            inc = [{"type": "territoryAvailabilities", "id": f"${{{t}}}", "attributes": {"available": t not in EXCLUDED},
+                    "relationships": {"territory": rel("territories", t)}} for t in terr]
+            call("POST", "/v2/appAvailabilities", {
+                "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": True},
+                         "relationships": {"app": rel("apps", app_id),
+                                           "territoryAvailabilities": {"data": [{"type": "territoryAvailabilities", "id": x["id"]} for x in inc]}}},
+                "included": inc})
+            return f"tạo mới: {len(terr) - len(EXCLUDED & set(terr))} nước, trừ {sorted(EXCLUDED) or 'không'}"
+        rows = call("GET", f"/v2/appAvailabilities/{cur['data']['id']}/territoryAvailabilities?limit=200&include=territory")["data"]
+        changed = []
+        for r in rows:
+            t = r["relationships"]["territory"]["data"]["id"]
+            want = t not in EXCLUDED
+            if r["attributes"].get("available") != want and (t in EXCLUDED or not r["attributes"].get("available")):
+                call("PATCH", f"/v1/territoryAvailabilities/{r['id']}", {"data": {"type": "territoryAvailabilities", "id": r["id"],
+                     "attributes": {"available": want}}})
+                changed.append(f"{t}={'bật' if want else 'tắt'}")
+        on = sum(1 for r in rows if r["attributes"].get("available")) + sum(1 for c in changed if c.endswith("bật")) - sum(1 for c in changed if c.endswith("tắt"))
+        return f"{on}/{len(rows)} nước, trừ {sorted(EXCLUDED) or 'không'}" + (f"; đổi: {', '.join(changed)}" if changed else "; không đổi")
     step("Quốc gia phát hành", availability)
 
     # ---- Phiên bản App Store đang soạn -------------------------------------------------------
@@ -170,106 +195,117 @@ def main():
     vers = call("GET", f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=IOS&limit=50")["data"]
     ver = next((v for v in vers if v["attributes"]["appStoreState"] in editable), None)
     first_release = not any(v["attributes"]["appStoreState"] == "READY_FOR_SALE" for v in vers)
-    if ver is None:
-        ver = call("POST", "/v1/appStoreVersions", {"data": {"type": "appStoreVersions",
-                   "attributes": {"platform": "IOS", "versionString": args.version},
-                   "relationships": {"app": rel("apps", app_id)}}})["data"]
-    ver_id = ver["id"]
-
-    def version_attrs():
-        attrs = {"copyright": STORE_ENV.get("COPYRIGHT"), "releaseType": "AFTER_APPROVAL"}
-        if ver["attributes"]["versionString"] != args.version:
-            attrs["versionString"] = args.version
-        call("PATCH", f"/v1/appStoreVersions/{ver_id}", {"data": {"type": "appStoreVersions", "id": ver_id, "attributes": attrs}})
-        return f"{args.version}, tự phát hành sau khi duyệt"
-    step("Phiên bản App Store", version_attrs)
-
-    vloc = {x["attributes"]["locale"]: x["id"] for x in call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizations")["data"]}
-    for loc in locales:
-        def version_loc(loc=loc):
-            attrs = {"description": read(loc, "description.txt"), "keywords": read(loc, "keywords.txt"),
-                     "marketingUrl": read(loc, "marketing_url.txt"), "promotionalText": read(loc, "promotional_text.txt"),
-                     "supportUrl": read(loc, "support_url.txt")}
-            if not first_release:  # bản đầu tiên không được có "What's New"
-                attrs["whatsNew"] = read(loc, "release_notes.txt")
-            if loc in vloc:
-                call("PATCH", f"/v1/appStoreVersionLocalizations/{vloc[loc]}", {"data": {"type": "appStoreVersionLocalizations", "id": vloc[loc], "attributes": attrs}})
-            else:
-                attrs["locale"] = loc
-                call("POST", "/v1/appStoreVersionLocalizations", {"data": {"type": "appStoreVersionLocalizations", "attributes": attrs, "relationships": {"appStoreVersion": rel("appStoreVersions", ver_id)}}})
-        step(f"Mô tả phiên bản [{loc}]", version_loc)
-
-    # ---- Screenshot iPhone: ô "6.9" Display" (API: APP_IPHONE_67) + ô 6.5" -----------------------
-    # Nguồn: store/ios/screenshots/ (cp.sh copy từ 1config/screenshots/iOS). Upload khi SYNC_SCREENSHOTS=1
-    # (CI: file mã băm iOS đổi) hoặc bộ ảnh trên App Store Connect còn trống. Ảnh được đưa về đúng 1290x2796.
-    SHOT_SETS = [("APP_IPHONE_67", (1290, 2796)), ("APP_IPHONE_65", (1284, 2778))]
-    shots_dir = os.path.join(STORE, "ios", "screenshots")
-
-    def screenshots():
-        import hashlib, io
-        from PIL import Image  # CI: pip install pillow
-        files = sorted(f for f in os.listdir(shots_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")))[:10]
-        srcs = [Image.open(os.path.join(shots_dir, f)).convert("RGB") for f in files]
-        for f, im in zip(files, srcs):
-            if im.size[0] < 1290:
-                print(f"    ! {f}: {im.size[0]}x{im.size[1]} nhỏ – phóng to, nên thay ảnh gốc độ phân giải cao")
-        locs = {x["attributes"]["locale"]: x["id"] for x in call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizations")["data"]}
-        report = []
-        for shot_type, size in SHOT_SETS:
-            imgs = []
-            for im in srcs:
-                buf = io.BytesIO(); im.resize(size, Image.LANCZOS).save(buf, "PNG"); imgs.append(buf.getvalue())
-            for loc, lid in sorted(locs.items()):
-                sets = call("GET", f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets")["data"]
-                st = next((x for x in sets if x["attributes"]["screenshotDisplayType"] == shot_type), None)
-                old = call("GET", f"/v1/appScreenshotSets/{st['id']}/appScreenshots")["data"] if st else []
-                if os.environ.get("SYNC_SCREENSHOTS") != "1" and old:
-                    report.append(f"{shot_type} {loc} giữ {len(old)}"); continue
-                if st is None:
-                    st = call("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets",
-                              "attributes": {"screenshotDisplayType": shot_type},
-                              "relationships": {"appStoreVersionLocalization": rel("appStoreVersionLocalizations", lid)}}})["data"]
-                for o in old:
-                    call("DELETE", f"/v1/appScreenshots/{o['id']}")
-                for i, data in enumerate(imgs):
-                    sc = call("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots",
-                              "attributes": {"fileName": f"{i:02d}.png", "fileSize": len(data)},
-                              "relationships": {"appScreenshotSet": rel("appScreenshotSets", st["id"])}}})["data"]
-                    for op in sc["attributes"]["uploadOperations"]:
-                        part = data[op["offset"]:op["offset"] + op["length"]]
-                        req = urllib.request.Request(op["url"], data=part, method=op["method"],
-                                                     headers={h["name"]: h["value"] for h in op.get("requestHeaders", [])})
-                        urllib.request.urlopen(req).read()
-                    call("PATCH", f"/v1/appScreenshots/{sc['id']}", {"data": {"type": "appScreenshots", "id": sc["id"],
-                         "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
-                report.append(f"{shot_type} {loc} {len(imgs)} ảnh mới")
-        return "; ".join(report)
-
-    if os.path.isdir(shots_dir) and os.listdir(shots_dir):
-        step('Screenshot iPhone 6.9" + 6.5"', screenshots)
-    else:
-        print("  … Chưa có screenshot (store/ios/screenshots/ – chạy 1config/cp.sh) – App Store bắt buộc trước khi nộp duyệt")
-        FAILED.append("Screenshot iOS")
-
-    # ---- App Review ------------------------------------------------------------------------------
+    IN_FLIGHT = ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "PENDING_APPLE_RELEASE", "PROCESSING_FOR_APP_STORE",
+                 "READY_FOR_REVIEW", "WAITING_FOR_EXPORT_COMPLIANCE", "PENDING_CONTRACT", "ACCEPTED")
+    flying = next((v for v in vers if v["attributes"]["appStoreState"] in IN_FLIGHT), None)
+    skip_version = ver is None and flying is not None
+    if skip_version:
+        print(f'  = Phiên bản {flying["attributes"]["versionString"]} đang {flying["attributes"]["appStoreState"]} – không sửa metadata/screenshot/App Review, không tạo phiên bản mới')
     review = {k: IOS_ENV.get(f"APP_REVIEW_{k}", "") for k in ("FIRST_NAME", "LAST_NAME", "PHONE", "EMAIL", "DEMO_USER", "DEMO_PASSWORD", "NOTES")}
-    if any(not v or "<TODO" in v for k, v in review.items() if k != "NOTES"):
-        print("  … Bỏ qua App Review: APP_REVIEW_* trong 1config/ios/app.env chưa điền đủ")
-        FAILED.append("App Review (thiếu APP_REVIEW_*)")
-    else:
-        def review_details():
-            attrs = {"contactFirstName": review["FIRST_NAME"], "contactLastName": review["LAST_NAME"],
-                     "contactPhone": review["PHONE"], "contactEmail": review["EMAIL"],
-                     "demoAccountName": review["DEMO_USER"], "demoAccountPassword": review["DEMO_PASSWORD"],
-                     "demoAccountRequired": True, "notes": review["NOTES"] if "<TODO" not in review["NOTES"] else ""}
-            cur = call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreReviewDetail", ok_status={404})
-            if cur and cur.get("data"):
-                rid = cur["data"]["id"]
-                call("PATCH", f"/v1/appStoreReviewDetails/{rid}", {"data": {"type": "appStoreReviewDetails", "id": rid, "attributes": attrs}})
-            else:
-                call("POST", "/v1/appStoreReviewDetails", {"data": {"type": "appStoreReviewDetails", "attributes": attrs, "relationships": {"appStoreVersion": rel("appStoreVersions", ver_id)}}})
-            return f'{review["FIRST_NAME"]} {review["LAST_NAME"]}, demo {review["DEMO_USER"]}'
-        step("App Review", review_details)
+    def version_section(ver):
+        if ver is None:
+            ver = call("POST", "/v1/appStoreVersions", {"data": {"type": "appStoreVersions",
+                       "attributes": {"platform": "IOS", "versionString": args.version},
+                       "relationships": {"app": rel("apps", app_id)}}})["data"]
+        ver_id = ver["id"]
+
+        def version_attrs():
+            # MANUAL: bấm Release sau khi Apple duyệt; AFTER_APPROVAL: tự phát hành (store.env IOS_RELEASE_TYPE)
+            attrs = {"copyright": STORE_ENV.get("COPYRIGHT"), "releaseType": STORE_ENV.get("IOS_RELEASE_TYPE", "AFTER_APPROVAL")}
+            if ver["attributes"]["versionString"] != args.version:
+                attrs["versionString"] = args.version
+            call("PATCH", f"/v1/appStoreVersions/{ver_id}", {"data": {"type": "appStoreVersions", "id": ver_id, "attributes": attrs}})
+            return f'{args.version}, phát hành {attrs["releaseType"]}'
+        step("Phiên bản App Store", version_attrs)
+
+        vloc = {x["attributes"]["locale"]: x["id"] for x in call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizations")["data"]}
+        for loc in locales:
+            def version_loc(loc=loc):
+                attrs = {"description": read(loc, "description.txt"), "keywords": read(loc, "keywords.txt"),
+                         "marketingUrl": read(loc, "marketing_url.txt"), "promotionalText": read(loc, "promotional_text.txt"),
+                         "supportUrl": read(loc, "support_url.txt")}
+                if not first_release:  # bản đầu tiên không được có "What's New"
+                    attrs["whatsNew"] = read(loc, "release_notes.txt")
+                if loc in vloc:
+                    call("PATCH", f"/v1/appStoreVersionLocalizations/{vloc[loc]}", {"data": {"type": "appStoreVersionLocalizations", "id": vloc[loc], "attributes": attrs}})
+                else:
+                    attrs["locale"] = loc
+                    call("POST", "/v1/appStoreVersionLocalizations", {"data": {"type": "appStoreVersionLocalizations", "attributes": attrs, "relationships": {"appStoreVersion": rel("appStoreVersions", ver_id)}}})
+            step(f"Mô tả phiên bản [{loc}]", version_loc)
+
+        # ---- Screenshot iPhone: ô "6.9" Display" (API: APP_IPHONE_67) + ô 6.5" -----------------------
+        # Nguồn: 1config/store/ios/screenshots/. Upload khi SYNC_SCREENSHOTS=1
+        # (CI: dòng ios/screenshots trong store.sha256 đổi) hoặc bộ ảnh trên App Store Connect còn trống. Ảnh được đưa về đúng 1290x2796.
+        SHOT_SETS = [("APP_IPHONE_67", (1290, 2796)), ("APP_IPHONE_65", (1284, 2778))]
+        shots_dir = os.path.join(STORE, "ios", "screenshots")
+
+        def screenshots():
+            import hashlib, io
+            from PIL import Image  # CI: pip install pillow
+            files = sorted(f for f in os.listdir(shots_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")))[:10]
+            srcs = [Image.open(os.path.join(shots_dir, f)).convert("RGB") for f in files]
+            for f, im in zip(files, srcs):
+                if im.size[0] < 1290:
+                    print(f"    ! {f}: {im.size[0]}x{im.size[1]} nhỏ – phóng to, nên thay ảnh gốc độ phân giải cao")
+            locs = {x["attributes"]["locale"]: x["id"] for x in call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizations")["data"]}
+            report = []
+            for shot_type, size in SHOT_SETS:
+                imgs = []
+                for im in srcs:
+                    buf = io.BytesIO(); im.resize(size, Image.LANCZOS).save(buf, "PNG"); imgs.append(buf.getvalue())
+                for loc, lid in sorted(locs.items()):
+                    sets = call("GET", f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets")["data"]
+                    st = next((x for x in sets if x["attributes"]["screenshotDisplayType"] == shot_type), None)
+                    old = call("GET", f"/v1/appScreenshotSets/{st['id']}/appScreenshots")["data"] if st else []
+                    if os.environ.get("SYNC_SCREENSHOTS") != "1" and old:
+                        report.append(f"{shot_type} {loc} giữ {len(old)}"); continue
+                    if st is None:
+                        st = call("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets",
+                                  "attributes": {"screenshotDisplayType": shot_type},
+                                  "relationships": {"appStoreVersionLocalization": rel("appStoreVersionLocalizations", lid)}}})["data"]
+                    for o in old:
+                        call("DELETE", f"/v1/appScreenshots/{o['id']}")
+                    for i, data in enumerate(imgs):
+                        sc = call("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots",
+                                  "attributes": {"fileName": f"{i:02d}.png", "fileSize": len(data)},
+                                  "relationships": {"appScreenshotSet": rel("appScreenshotSets", st["id"])}}})["data"]
+                        for op in sc["attributes"]["uploadOperations"]:
+                            part = data[op["offset"]:op["offset"] + op["length"]]
+                            req = urllib.request.Request(op["url"], data=part, method=op["method"],
+                                                         headers={h["name"]: h["value"] for h in op.get("requestHeaders", [])})
+                            urllib.request.urlopen(req).read()
+                        call("PATCH", f"/v1/appScreenshots/{sc['id']}", {"data": {"type": "appScreenshots", "id": sc["id"],
+                             "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
+                    report.append(f"{shot_type} {loc} {len(imgs)} ảnh mới")
+            return "; ".join(report)
+
+        if os.path.isdir(shots_dir) and os.listdir(shots_dir):
+            step('Screenshot iPhone 6.9" + 6.5"', screenshots)
+        else:
+            print("  … Chưa có screenshot (1config/store/ios/screenshots/) – App Store bắt buộc trước khi nộp duyệt")
+            FAILED.append("Screenshot iOS")
+
+        # ---- App Review ------------------------------------------------------------------------------
+        if any(not v or "<TODO" in v for k, v in review.items() if k != "NOTES"):
+            print("  … Bỏ qua App Review: APP_REVIEW_* trong 1config/ios/app.env chưa điền đủ")
+            FAILED.append("App Review (thiếu APP_REVIEW_*)")
+        else:
+            def review_details():
+                attrs = {"contactFirstName": review["FIRST_NAME"], "contactLastName": review["LAST_NAME"],
+                         "contactPhone": review["PHONE"], "contactEmail": review["EMAIL"],
+                         "demoAccountName": review["DEMO_USER"], "demoAccountPassword": review["DEMO_PASSWORD"],
+                         "demoAccountRequired": True, "notes": review["NOTES"] if "<TODO" not in review["NOTES"] else ""}
+                cur = call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreReviewDetail", ok_status={404})
+                if cur and cur.get("data"):
+                    rid = cur["data"]["id"]
+                    call("PATCH", f"/v1/appStoreReviewDetails/{rid}", {"data": {"type": "appStoreReviewDetails", "id": rid, "attributes": attrs}})
+                else:
+                    call("POST", "/v1/appStoreReviewDetails", {"data": {"type": "appStoreReviewDetails", "attributes": attrs, "relationships": {"appStoreVersion": rel("appStoreVersions", ver_id)}}})
+                return f'{review["FIRST_NAME"]} {review["LAST_NAME"]}, demo {review["DEMO_USER"]}'
+            step("App Review", review_details)
+
+    if not skip_version:
+        version_section(ver)
 
     # ---- TestFlight ------------------------------------------------------------------------------
     def internal_group():

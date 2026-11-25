@@ -1,1 +1,0 @@
-First release of Omnibox: calls through the Gcalls call center, contact sync, Bluetooth headset support.

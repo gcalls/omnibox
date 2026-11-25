@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =====================================================================================
-#  store-sync-android.sh – đồng bộ trang Google Play từ shell-mobile/store/ (không fastlane):
+#  store-sync-android.sh – đồng bộ trang Google Play từ shell-mobile/1config/store/ (không fastlane):
 #    store/android/listings/<lang>/{title,short_description,full_description}.txt
 #    store/android/images/{icon.png (512x512), feature_graphic.png (1024x500)}
-#    store/android/screenshots/* (cp.sh copy từ 1config/screenshots/android; upload khi SYNC_SCREENSHOTS=1
+#    store/android/screenshots/* (upload khi SYNC_SCREENSHOTS=1
 #      hoặc store chưa có ảnh; WebP được chuyển sang PNG)
 #    store/store.env: CONTACT_EMAIL, CONTACT_WEBSITE
 #    store/android/data_safety.csv: khai báo Data safety (scripts/play-data-safety.py)
@@ -12,7 +12,7 @@
 # =====================================================================================
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STORE="$ROOT/store"; DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
+STORE="$ROOT/1config/store"; DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
 source "$ROOT/1config/chplay/env.sh"
 set -a; source "$STORE/store.env"; set +a
 PLAY_TOKEN="$(play_token)"
@@ -44,8 +44,8 @@ for dir in "$STORE"/android/listings/*/; do
     curl -gsS -X POST -H "Authorization: Bearer $PLAY_TOKEN" -H "Content-Type: image/png" --data-binary "@$file" \
       "$UPLOAD/edits/$edit/listings/$lang/$type?uploadType=media" | grep -q '"image"' && echo "    ✔ $type" || echo "    ✖ $type" >&2
   done
-  # Screenshot: store/android/screenshots/ (cp.sh copy từ 1config/screenshots/android). Chỉ upload khi
-  # SYNC_SCREENSHOTS=1 (CI: file mã băm Android đổi) hoặc trang store chưa có ảnh nào.
+  # Screenshot: 1config/store/android/screenshots/. Chỉ upload khi
+  # SYNC_SCREENSHOTS=1 (CI: dòng android/screenshots trong store.sha256 đổi) hoặc trang store chưa có ảnh nào.
   remote="$(call GET "$API/edits/$edit/listings/$lang/phoneScreenshots" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("images",[])))')"
   if [ -d "$STORE/android/screenshots" ] && { [ "${SYNC_SCREENSHOTS:-0}" = 1 ] || [ "$remote" = 0 ]; }; then
     conv="$(mktemp -d)"

@@ -1,1 +1,0 @@
-call center,voip,phone system,customer care,sales,crm,softphone,gcalls

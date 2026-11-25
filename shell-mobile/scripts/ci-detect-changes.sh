@@ -7,9 +7,9 @@
 #    shell-mobile/src/ios/**, shell-mobile/scripts/ios-build.sh → iOS
 #    shell-mobile/src/** còn lại (JS, package.json…) → cả hai (code dùng chung)
 #    shell-mobile/1config.tar.gpg                   → cả hai (cấu hình dùng chung)
-#    shell-mobile/store/**                          → đồng bộ metadata store (không build)
-#    shell-mobile/store/<os>/screenshots.sha256     → + upload lại screenshot của hệ điều hành đó
-#      (file mã băm do 1config/cp.sh ghi từ 1config/screenshots/<os>/)
+#    shell-mobile/store.sha256                      → đồng bộ trang store (không build); dòng
+#      android/screenshots | ios/screenshots đổi → upload lại screenshot của hệ điều hành đó
+#      (store.sha256 do 1config/cp.sh ghi từ 1config/store/ – nội dung store nằm trong bundle mã hoá)
 #    còn lại (docs, README…)                        → không build
 #  Tag v* (phát hành production): build cả hai + đồng bộ store.
 #
@@ -51,11 +51,13 @@ else
       shell-mobile/src/android/*)                     android=true ;;
       shell-mobile/src/ios/*|shell-mobile/scripts/ios-build.sh) ios=true ;;
       shell-mobile/src/*|shell-mobile/1config.tar.gpg) android=true; ios=true ;;
-      shell-mobile/store/android/screenshots.sha256)  store=true; shots_android=true ;;
-      shell-mobile/store/ios/screenshots.sha256)      store=true; shots_ios=true ;;
-      shell-mobile/store/*)                           store=true ;;
+      shell-mobile/store.sha256)                      store=true ;;
     esac
   done < <(git diff --name-only "$BEFORE" "$AFTER" -- shell-mobile)
+  # Nội dung store nằm trong bundle mã hoá: xem dòng nào của store.sha256 đổi
+  changed="$(git diff -U0 "$BEFORE" "$AFTER" -- shell-mobile/store.sha256 | grep -E '^\+[0-9a-f]{64}' || true)"
+  echo "$changed" | grep -q ' android/screenshots$' && shots_android=true
+  echo "$changed" | grep -q ' ios/screenshots$' && shots_ios=true
 fi
 
 echo "→ android=$android ios=$ios store=$store shots_android=$shots_android shots_ios=$shots_ios"

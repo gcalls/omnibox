@@ -1,0 +1,17 @@
+{
+  "hosting": {
+    "public": "public",
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "headers": [
+      {
+        "source": "/terms/**",
+        "headers": [
+          { "key": "Access-Control-Allow-Origin", "value": "*" },
+          { "key": "Cache-Control", "value": "public, max-age=300" }
+        ]
+      }
+    ],
+    "predeploy": ["python3 terms/build.py --out public/terms"]
+  }
+}
