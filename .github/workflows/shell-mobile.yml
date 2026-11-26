@@ -55,6 +55,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read          # cổng main: đọc kết quả workflow của cùng commit trên nhánh test
 
 env:
   CONFIG_MODE: ${{ github.ref_name == 'main' && 'production' || 'internal' }}
@@ -82,6 +83,19 @@ jobs:
           AFTER: ${{ github.sha }}
           PLATFORM: ${{ inputs.platform }}
         run: bash shell-mobile/scripts/ci-detect-changes.sh
+      # main chỉ phát hành đại trà commit đã chạy thành công trên test (merge fast-forward test → main)
+      - name: Cổng main – commit phải xanh trên nhánh test
+        if: github.ref_name == 'main' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok="$(gh run list -R "$GITHUB_REPOSITORY" --workflow shell-mobile.yml --branch test --commit "$GITHUB_SHA" \
+                 --status success --json databaseId --jq 'length')"
+          if [ "${ok:-0}" -lt 1 ]; then
+            echo "::error::Commit ${GITHUB_SHA::7} chưa chạy thành công trên nhánh test – merge dev → test, chờ xanh, rồi fast-forward test → main"
+            exit 1
+          fi
+          echo "Commit ${GITHUB_SHA::7} đã xanh trên test → cho phép phát hành"
 
   android:
     name: Android (APK + AAB)
@@ -188,6 +202,10 @@ jobs:
       - name: Google Play Internal App Sharing (link cài ngay, không cần review)
         if: github.ref_name == 'test' && steps.cfg.outputs.has_play == 'true' && steps.cfg.outputs.play_upload == 'true'
         run: bash scripts/play-internal-sharing.sh "$(ls -1 dist/*.aab | head -n1)"
+
+      - name: Link cho tester Android (Summary)
+        if: env.STORE_BRANCH == 'true' && steps.cfg.outputs.has_play == 'true' && steps.cfg.outputs.play_upload == 'true'
+        run: bash scripts/play-tester-summary.sh
 
       - name: Dọn cấu hình đã giải mã
         if: always()

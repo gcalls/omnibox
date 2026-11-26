@@ -73,13 +73,44 @@ def main():
     print(f"Đã gắn build vào nhóm \"{group_name}\"")
 
     # 5. Beta App Review
+    review_note = ""
     try:
         s.call("POST", "/v1/betaAppReviewSubmissions", {"data": {"type": "betaAppReviewSubmissions",
                "relationships": {"build": s.rel("builds", bid)}}})
         print(f"✔ Đã gửi Beta App Review cho {a.version} ({a.build}) – tester ngoài nhận bản khi Apple duyệt")
     except RuntimeError as e:
-        # Đã gửi / có build khác đang chờ duyệt: không làm hỏng job, tester nội bộ vẫn có bản
+        # Đã gửi / có build khác cùng phiên bản đang chờ duyệt: không làm hỏng job, tester nội bộ vẫn có bản
+        review_note = f"chưa gửi: {e}"
         print(f"::warning::Chưa gửi được Beta App Review cho {a.version} ({a.build}): {e}")
+
+    # 6. Summary: link cho tester iOS
+    summary(app_id, bid, a, g, groups, review_note)
+
+
+def summary(app_id, bid, a, ext_group, groups, review_note):
+    det = s.call("GET", f"/v1/builds/{bid}/buildBetaDetail")["data"]["attributes"]
+    rev = (s.call("GET", f"/v1/builds/{bid}/betaAppReviewSubmission", ok_status={404}) or {}).get("data") or {}
+    review = rev.get("attributes", {}).get("betaReviewState") or review_note or "–"
+    rows = []
+    for g in groups:
+        at = g["attributes"]
+        n = len(s.call("GET", f"/v1/betaGroups/{g['id']}/betaTesters?limit=200")["data"])
+        if at.get("isInternalGroup"):
+            rows.append((f"TestFlight nội bộ – {at['name']}", f"{det.get('internalBuildState')}", f"{n} tester",
+                         "Mời qua email; cài bằng app TestFlight (https://apps.apple.com/app/testflight/id899247664)"))
+        elif g["id"] == ext_group["id"]:
+            link = at.get("publicLink") if at.get("publicLinkEnabled") else "_link công khai đang tắt_"
+            rows.append((f"TestFlight ngoài – {at['name']}", f"{det.get('externalBuildState')} · review: {review}",
+                         f"{n} tester + link công khai", link))
+    lines = [f"### iOS – link cho tester (Omnibox {a.version} build {a.build})", "",
+             "| Kênh | Trạng thái build | Tester | Link |", "| --- | --- | --- | --- |"]
+    lines += ["| " + " | ".join(r) + " |" for r in rows]
+    lines += ["", "Tester ngoài nhận bản sau khi Apple duyệt Beta App Review (mỗi phiên bản chỉ một build chờ duyệt một lúc).", ""]
+    text = "\n".join(lines)
+    print(text)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+            f.write(text + "\n")
 
 
 if __name__ == "__main__":

@@ -20,5 +20,6 @@ if [ -z "$url" ]; then
   exit 0
 fi
 echo "Internal app sharing: $url"
-[ -n "${GITHUB_STEP_SUMMARY:-}" ] && printf '### Android – Internal app sharing (%s)\n\n%s\n' "$(basename "$aab")" "$url" >> "$GITHUB_STEP_SUMMARY"
+# Đưa link vào bảng tester (scripts/play-tester-summary.sh đọc SHARING_URL)
+[ -n "${GITHUB_ENV:-}" ] && echo "SHARING_URL=$url" >> "$GITHUB_ENV"
 exit 0

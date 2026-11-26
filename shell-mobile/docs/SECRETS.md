@@ -25,7 +25,7 @@ Nơi lưu giá trị thật:
 | `android/play-service-account.json` | CI, `chplay/` | `play-publisher@omnibox-515602` (Google Play Developer API) | **Cao** |
 | `ios/app.env` | CI, `appconnect/` | `APP_ID`, `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `APP_REVIEW_*` | Trung bình |
 | `ios/AuthKey.p8` | CI, `appconnect/` | App Store Connect API key (tạo bằng gad.appl6@gcalls.co) | **Cao** |
-| `ios/distribution.p12` + `ios/signing.env`, `ios/profiles/*.mobileprovision` | CI | Chứng chỉ Apple Distribution + profile (tạo bằng `appconnect/asc-signing.sh`) | **Cao** |
+| `ios/distribution.p12` + `ios/signing.env`, `ios/profiles/*.mobileprovision` | CI | Chứng chỉ Apple Distribution `P8637X889U` (tạo 26/11/2026, hạn 26/11/2027) + profile "Omnibox App Store" (có Default Calling App). Tạo lại bằng `appconnect/asc-signing.sh` | **Cao** |
 | `archive/co.gcalls.shell/` | — | Bộ secret của app cũ `co.gcalls.shell` | **Cao** |
 
 ## Lịch rotate
