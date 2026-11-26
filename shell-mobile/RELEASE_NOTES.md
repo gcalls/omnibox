@@ -11,6 +11,20 @@ Quy ước:
 - Mỗi ngôn ngữ tối đa khoảng 450 ký tự (Google Play giới hạn 500, đã tính dòng phiên bản).
 - Merge vào `main` mà thiếu mục của phiên bản → CI dừng trước khi phát hành.
 
+## 1.0.2
+
+### vi
+
+- Luôn hiển thị số phiên bản ở góc dưới bên trái màn hình.
+- Thông báo khi có phiên bản mới; bản nâng cấp lớn yêu cầu cập nhật để tiếp tục sử dụng.
+- Gỡ bỏ thành phần không cần thiết, ứng dụng gọn nhẹ hơn.
+
+### en-US
+
+- The app version is always shown in the bottom-left corner.
+- Notifies you when a new version is available; major upgrades must be installed to continue.
+- Removed unused components for a lighter app.
+
 ## 1.0.1
 
 ### vi

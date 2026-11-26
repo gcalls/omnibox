@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 1.0.2
+
+- Nhãn phiên bản luôn hiện ở góc dưới trái, đè lên callbox.
+- Kênh iOS Ad Hoc: `1config/appconnect/asc-device.sh` (đăng ký iPhone), `scripts/ios_adhoc_profile.py` (profile "Omnibox Ad Hoc"), `ios-build.sh` xuất `*-adhoc.ipa` + manifest, `publish-to-gist.sh` thay `{{RAW}}` và in link `itms-services`.
+- Nhánh `dev`: build + đăng gist, không lên store.
+
 ### 1.0.1
 
 - Bỏ hoàn toàn Firebase: xoá `google-services.json`, `GoogleService-Info.plist`, `firebase-service-account.json`, biến `FIREBASE_*` và bước Firebase App Distribution trong CI (app không dùng SDK Firebase nào). App chỉ phụ thuộc `callbox.gcalls.co`.

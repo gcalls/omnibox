@@ -42,8 +42,10 @@ echo "Gist: https://gist.github.com/$owner/$gist_id"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 names=(); for f in "${files[@]}"; do names+=("$(basename "$f")"); done
-# Chỉ giữ file của main / test / tag v* (file nhánh tạm bị xoá để gist không phình to)
-KEEP="${GIST_KEEP_REGEX:-^(main|test|v[0-9][^-]*)-}"
+# Chỉ giữ file của main / test / dev / tag v* (file nhánh tạm bị xoá để gist không phình to)
+KEEP="${GIST_KEEP_REGEX:-^(main|test|dev|v[0-9][^-]*)-}"
+# Link cài bản iOS Ad Hoc (mở trong Safari trên iPhone đã đăng ký UDID)
+install_link() { echo "itms-services://?action=download-manifest&url=$1"; }
 msg="build: ${names[*]} (${GITHUB_REPOSITORY:-local}@${GITHUB_SHA:-$(date -u +%FT%TZ)})"
 
 # publish <gist_id> → 0: xong; 2: gist vượt quota dung lượng; 1: lỗi khác
@@ -54,16 +56,23 @@ publish() {
   ( cd "$dir"
     branch="$(git symbolic-ref --short HEAD)"
     git config user.name "omnibox-ci"; git config user.email "omnibox-ci@users.noreply.github.com"
+    raw="https://gist.githubusercontent.com/$owner/$id/raw"
     for f in "${files[@]}"; do cp "$f" "./$(basename "$f")"; done
+    # Manifest Ad Hoc: {{RAW}} → thư mục raw của gist (link luôn trỏ bản mới nhất)
+    for f in *.manifest.plist; do if [ -f "$f" ]; then sed -i "s|{{RAW}}|$raw|g" "$f"; fi; done
     for f in *; do
       [ "$f" = README.md ] && continue
       [[ " ${names[*]} " == *" $f "* || "$f" =~ $KEEP ]] || { git rm -q -f "$f" 2>/dev/null || rm -f "$f"; echo "  xoá file cũ $f"; }
     done
-    raw="https://gist.githubusercontent.com/$owner/$id/raw"
     { echo "# omnibox builds"; echo
       echo "Tự động cập nhật bởi GitHub Actions (repo ${GITHUB_REPOSITORY:-omnibox}). Tên file: \`{branch}-{version}.{đuôi}\`."; echo
       echo "| File | Dung lượng | Tải về |"; echo "| --- | --- | --- |"
       for f in $(ls -1 | grep -v '^README.md$' | sort); do echo "| \`$f\` | $(du -h "$f" | cut -f1) | [$raw/$f]($raw/$f) |"; done
+      if ls *.manifest.plist >/dev/null 2>&1; then
+        echo; echo "## Cài iOS Ad Hoc"; echo
+        echo "Chỉ cho iPhone đã đăng ký UDID. Dán link vào **Safari** trên iPhone:"; echo
+        for f in *.manifest.plist; do echo "- \`${f%.manifest.plist}\`: \`$(install_link "$raw/$f")\`"; done
+      fi
     } > README.md
     # Một commit duy nhất (không giữ lịch sử) → gist chỉ chứa bản mới nhất, không vượt quota
     git checkout -q --orphan omnibox-latest
@@ -92,5 +101,8 @@ raw="https://gist.githubusercontent.com/$owner/$gist_id/raw"
   echo "| File | Link tải (luôn là bản mới nhất) |"
   echo "| --- | --- |"
   for n in "${names[@]}"; do echo "| \`$n\` | $raw/$n |"; done
+  for n in "${names[@]}"; do
+    if [[ "$n" == *.manifest.plist ]]; then echo; echo "iOS Ad Hoc \`${n%.manifest.plist}\` – mở trong Safari: \`$(install_link "$raw/$n")\`"; fi
+  done
 } >> "$SUMMARY"
 for n in "${names[@]}"; do echo "Đã đăng $n → $raw/$n"; done

@@ -14,9 +14,10 @@
 #  Chỉ build nền tảng có code thay đổi (src/android, src/ios) hoặc code dùng chung (src/ còn lại, bundle 1config).
 #  Cấu hình: main → `1config/cp.sh production`, test/khác → `1config/cp.sh internal`.
 #  Phát hành (Marketplace actions + script API, đọc credential trực tiếp từ 1config đã giải mã):
+#    dev    chỉ build + đăng gist (APK, IPA App Store, IPA Ad Hoc + link cài itms-services) – không lên store
 #    test   Android → Google Play PLAY_TRACK = internal, alpha (closed), beta (open) + Internal App Sharing (link trong Summary)
 #           iOS     → TestFlight: tester nội bộ nhận ngay; nhóm tester ngoài TESTFLIGHT_EXTERNAL_GROUP (kèm link công khai)
-#                     sau Beta App Review
+#                     sau Beta App Review; Ad Hoc (iPhone đã đăng ký UDID) trên gist như dev
 #    main   Android → Google Play production (phát hành đại trà sau khi Google duyệt)
 #           iOS     → TestFlight + nộp App Store Review (bỏ qua kèm cảnh báo nếu phiên bản khác đang chờ duyệt)
 #    shell-mobile/store.sha256 thay đổi (nội dung 1config/store trong bundle mã hoá) → main: đồng bộ trang
@@ -37,7 +38,7 @@ name: shell-mobile
 
 on:
   push:
-    branches: [main, test]
+    branches: [main, test, dev]
     paths:
       - "shell-mobile/**"
   workflow_dispatch:
@@ -305,6 +306,11 @@ jobs:
           fi
           cd ios && pod install
 
+      # Kênh Ad Hoc: profile gồm mọi iPhone đã đăng ký (1config/appconnect/asc-device.sh); chưa có máy → bỏ qua
+      - name: Profile Ad Hoc
+        if: steps.sign.outputs.signed == 'true' && (github.ref_name == 'dev' || github.ref_name == 'test')
+        run: python3 -I scripts/ios_adhoc_profile.py
+
       - name: Build IPA (xcodebuild, ${{ steps.sign.outputs.signed == 'true' && 'ký App Store' || 'không ký' }})
         id: build
         env:
@@ -316,7 +322,9 @@ jobs:
       - uses: actions/upload-artifact@v5
         with:
           name: shell-mobile-ios
-          path: shell-mobile/dist/*.ipa
+          path: |
+            shell-mobile/dist/*.ipa
+            shell-mobile/dist/*.manifest.plist
           if-no-files-found: error
           retention-days: 7
 

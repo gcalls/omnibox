@@ -69,6 +69,7 @@ Phát hành lên store bằng GitHub Marketplace actions và script API (không 
 
 | Nhánh | Android | iOS |
 | --- | --- | --- |
+| `dev` | Chỉ build, đăng APK lên gist (không lên store) | Đăng IPA lên gist, kèm bản **Ad Hoc** và link cài `itms-services://…` cho iPhone đã đăng ký UDID |
 | `test` | Google Play `PLAY_TRACK` = `internal,alpha,beta` (internal testing, closed testing, open testing) + Internal App Sharing (link cài ngay trong Summary của lần chạy, `scripts/play-internal-sharing.sh`) | TestFlight: tester nội bộ nhận ngay; nhóm "Omnibox External" (gồm link công khai) sau Beta App Review (`scripts/ios_testflight_external.py`) |
 | `main` | Google Play production – phát hành đại trà sau khi Google duyệt | TestFlight + nộp App Store Review (`scripts/ios_submit.py`; bỏ qua kèm cảnh báo nếu phiên bản khác đang chờ duyệt) |
 
@@ -76,7 +77,9 @@ Chỉ nền tảng có code thay đổi mới được build và phát hành: `s
 
 - Ghi chú phát hành: thêm mục `## <version>` (có `### vi`, `### en-US`) vào [RELEASE_NOTES.md](RELEASE_NOTES.md) mỗi khi tăng version. CI đưa lên Google Play "Có gì mới", App Store "What's New" và TestFlight "What to Test", dòng đầu là "Phiên bản x.y.z". Merge vào `main` mà thiếu mục này thì CI dừng.
 - versionCode Android = `major×10000000 + minor×100000 + patch×1000 + (số lần chạy CI % 1000)`, nên MINOR và PATCH phải < 100.
-- Khi khởi động, app hiện `Omnibox <version> (<build>)` dưới vòng xoay tải trang và gửi `appVersion`/`appBuild` vào WebView.
+- App luôn hiện `v<version> (<build>)` ở góc dưới trái (đè lên callbox, không chặn thao tác), hiện `Omnibox <version> (<build>)` dưới vòng xoay tải trang, và gửi `appVersion`/`appBuild` vào WebView.
+- Ad Hoc (`dev`, `test`): thêm iPhone bằng `bash 1config/appconnect/asc-device.sh add "<tên>" <UDID>`; lần build sau CI tự tạo lại profile "Omnibox Ad Hoc" (`scripts/ios_adhoc_profile.py`) và đăng `<nhánh>-<version>-adhoc.ipa` + manifest lên gist. Mở link `itms-services://…` (trong README của gist / Summary) bằng Safari để cài.
+- Lịch sử phiên bản trên App Store: mỗi phiên bản phát hành qua `main` mang "What's New" từ `RELEASE_NOTES.md` (bản đầu tiên 1.0 không có – Apple không cho phép).
 - Yêu cầu cập nhật (`src/services/appUpdate.js`): store có bản mới đổi major/minor → bắt buộc (Android: Google Play In-App Updates toàn màn hình; iOS: hộp thoại chỉ có nút Cập nhật, mở App Store); chỉ đổi patch → nhắc, cho bỏ qua. Android chỉ hoạt động với bản cài từ Google Play.
 
 - Android dùng `r0adkll/upload-google-play` với `1config/android/play-service-account.json` (bật bằng `PLAY_UPLOAD=true`; thiếu file thì chỉ build + đăng gist).

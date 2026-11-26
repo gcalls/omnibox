@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Linking } from 'react-native';
 import { NativeEventEmitter, NativeModules,  } from 'react-native';
-import { View, TouchableOpacity, PanResponder, AppState } from 'react-native';
+import { View, Text, TouchableOpacity, PanResponder, AppState } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 
@@ -38,7 +38,7 @@ import { checkForUpdate, formatVersion, getAppInfo } from './services/appUpdate'
 function App(): React.JSX.Element {
 
   const [isVisible, setVisible] = useState(false)
-  // Phiên bản đang cài, vd. "Omnibox 1.0.1 (42)" – hiện dưới vòng xoay khi khởi động / tải trang
+  // Phiên bản đang cài, vd. "Omnibox 1.0.2 (42)" – hiện dưới vòng xoay khi tải trang và luôn ở góc dưới trái
   const [versionLabel, setVersionLabel] = useState('')
   const appInfoRef = useRef<any>(null)
 
@@ -492,6 +492,13 @@ function App(): React.JSX.Element {
             );
           }}
         />
+        {/* Nhãn phiên bản luôn hiện, đè lên callbox ở góc dưới trái (góc dưới phải là nút gọi của callbox);
+            pointerEvents="none" để không chặn thao tác trên trang */}
+        {versionLabel ? (
+          <View pointerEvents="none" style={styles.versionBadge}>
+            <Text style={styles.versionText}>{versionLabel.replace('Omnibox ', 'v')}</Text>
+          </View>
+        ) : null}
       </GestureRecognizer>
     </SafeAreaView>
     </SafeAreaProvider>);
@@ -499,6 +506,20 @@ function App(): React.JSX.Element {
 
 
 const styles = StyleSheet.create({
+  versionBadge: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30, 20, 60, 0.45)',
+  },
+  versionText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+  },
   sectionContainer: {
     marginTop: 32,
     paddingHorizontal: 24,

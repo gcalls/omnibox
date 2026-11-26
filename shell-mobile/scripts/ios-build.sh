@@ -95,6 +95,48 @@ if [ "$SIGNED" = 1 ]; then
   ipa="$(find "$export_dir" -maxdepth 1 -name '*.ipa' | head -n1)"
   [ -n "$ipa" ] || { echo "exportArchive không tạo ra .ipa" >&2; exit 1; }
   mv "$ipa" "$OUT_DIR/${name}.ipa"
+
+  # Kênh Ad Hoc (CI dev/test, scripts/ios_adhoc_profile.py đặt ADHOC_PROFILE): cùng archive, ký lại bằng profile
+  # Ad Hoc → ${name}-adhoc.ipa + ${name}-adhoc.manifest.plist (cài qua itms-services; {{RAW}} = thư mục tải,
+  # .github/scripts/publish-to-gist.sh thay bằng link raw của gist)
+  if [ -n "${ADHOC_PROFILE:-}" ]; then
+    adhoc_plist="$IOS/build/ExportOptions-adhoc.plist"; adhoc_dir="$IOS/build/export-adhoc"; rm -rf "$adhoc_dir"
+    cat > "$adhoc_plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>method</key><string>release-testing</string>
+  <key>teamID</key><string>$team</string>
+  <key>signingStyle</key><string>manual</string>
+  <key>provisioningProfiles</key><dict><key>$bundle_id</key><string>$ADHOC_PROFILE</string></dict>
+  <key>compileBitcode</key><false/>
+  <key>thinning</key><string>&lt;none&gt;</string>
+</dict></plist>
+EOF
+    if xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$adhoc_plist" -exportPath "$adhoc_dir" -quiet; then
+      mv "$(find "$adhoc_dir" -maxdepth 1 -name '*.ipa' | head -n1)" "$OUT_DIR/${name}-adhoc.ipa"
+      build_no="${BUILD_NUMBER:-$(setting CURRENT_PROJECT_VERSION)}"
+      cat > "$OUT_DIR/${name}-adhoc.manifest.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>items</key><array><dict>
+  <key>assets</key><array><dict>
+    <key>kind</key><string>software-package</string>
+    <key>url</key><string>{{RAW}}/${name}-adhoc.ipa</string>
+  </dict></array>
+  <key>metadata</key><dict>
+    <key>bundle-identifier</key><string>$bundle_id</string>
+    <key>bundle-version</key><string>$version</string>
+    <key>kind</key><string>software</string>
+    <key>title</key><string>Omnibox $version ($build_no)</string>
+  </dict>
+</dict></array></dict></plist>
+EOF
+      ls -la "$OUT_DIR/${name}-adhoc.ipa"
+    else
+      echo "::warning::Không xuất được bản Ad Hoc (profile \"$ADHOC_PROFILE\")"
+    fi
+  fi
 else
   app="$(find "$ARCHIVE/Products/Applications" -maxdepth 1 -name '*.app' | head -n1)"
   [ -n "$app" ] || { echo "Không tìm thấy file .app trong archive" >&2; exit 1; }
