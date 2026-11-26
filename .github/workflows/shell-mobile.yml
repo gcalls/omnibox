@@ -391,12 +391,14 @@ jobs:
         run: echo "APP_VERSION=$(python3 -c 'import json;print(json.load(open("src/package.json"))["version"])')" >> "$GITHUB_ENV"
       - name: Ghi chú phát hành ${{ env.APP_VERSION }}
         run: python3 -I scripts/release-notes.py --version "$APP_VERSION" --strict
-      - name: Pillow (screenshot App Store)
+      # venv riêng: script chạy python -I (bỏ qua site-packages của user) – pip --user không dùng được
+      - name: Python venv + Pillow (screenshot App Store)
         run: |
-          python3 -m pip install --quiet pillow
-          python3 -I -c 'import PIL; print("Pillow", PIL.__version__)'   # script chạy -I: phải thấy PIL ở site-packages chung
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow
+          "$RUNNER_TEMP/venv/bin/python" -I -c 'import PIL; print("Pillow", PIL.__version__)'
       - name: Nộp App Store Review ${{ env.APP_VERSION }} (build mới nhất)
-        run: python3 -I scripts/ios_submit.py --version "$APP_VERSION" --build latest
+        run: '"$RUNNER_TEMP/venv/bin/python" -I scripts/ios_submit.py --version "$APP_VERSION" --build latest'
       - name: Dọn cấu hình đã giải mã
         if: always()
         run: |
