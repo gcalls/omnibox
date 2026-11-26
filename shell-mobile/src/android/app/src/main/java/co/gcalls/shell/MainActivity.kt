@@ -1,13 +1,10 @@
 package co.gcalls.shell
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
-import androidx.core.app.ActivityCompat
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -20,8 +17,10 @@ class MainActivity : ReactActivity() {
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
 
+  // null: mở lại sau khi Android đã đóng tiến trình (từ đa nhiệm) → khởi động sạch, không khôi phục trạng thái view
+  // cũ của React Native (khôi phục có thể làm app văng – "Omnibox keeps stopping"). Khuyến nghị của React Native.
   override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
+    super.onCreate(null)
     handleIntent(intent)
   }
 
@@ -34,9 +33,9 @@ class MainActivity : ReactActivity() {
       @Suppress("DEPRECATION") isBluetoothScoOn = false
       @Suppress("DEPRECATION") isSpeakerphoneOn = true
     }
-    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-      ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_CONNECT), REQUEST_BLUETOOTH_CONNECT)
-    }
+    // Quyền (micro, thông báo, thiết bị lân cận/Bluetooth) xin ở màn hình cấp quyền lần đầu bên JS (components/Boot.tsx),
+    // có giải thích lý do – không xin ở đây nữa: trước đây xin lại mỗi lần onStart và trùng requestCode với
+    // PermissionsAndroid của React Native (đánh số từ 0) → kết quả quyền trả nhầm, yêu cầu quyền bên JS bị treo.
   }
 
   override fun onNewIntent(intent: Intent) {
@@ -52,7 +51,4 @@ class MainActivity : ReactActivity() {
     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("gcalls://$phoneNumber")))
   }
 
-  companion object {
-    private const val REQUEST_BLUETOOTH_CONNECT = 1
-  }
 }

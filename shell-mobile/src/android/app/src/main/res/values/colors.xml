@@ -1,3 +1,5 @@
 <resources>
     <color name="white">#FFF</color>
+    <!-- Nền màn khởi động (tím Gcalls) – tránh màn đen khi mở app / mở lại từ đa nhiệm -->
+    <color name="launch_bg">#673AB7</color>
 </resources>

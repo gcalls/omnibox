@@ -2,18 +2,9 @@
  * @format
  */
 
-import React from 'react';
 import {AppRegistry} from 'react-native';
-import App from './App';
-import TermsGate from './components/TermsGate';
+import Boot from './components/Boot';
 import {name as appName} from './app.json';
 
-// Lần đầu mở app: đọc hết và đồng ý Điều khoản dịch vụ (components/TermsGate.tsx) rồi mới vào callbox
-const Root = () => (
-  <TermsGate>
-    <App />
-  </TermsGate>
-);
-
-// startNetworkLogging();
-AppRegistry.registerComponent(appName, () => Root);
+// Khởi động: màn khởi động → cấp quyền (lần đầu) → Điều khoản (lần đầu) → callbox (components/Boot.tsx)
+AppRegistry.registerComponent(appName, () => Boot);

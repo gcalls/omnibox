@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### 1.0.4
+
+- UAT-01 (văng / màn đen khi mở lại từ đa nhiệm):
+  - `gAppStateModule.js` gọi `webViewRef.current.injectJavaScript` khi WebView chưa có → lỗi JS không bắt làm app dừng; mọi lời gọi WebView giờ kiểm tra null.
+  - `MainActivity`: `super.onCreate(null)` (không khôi phục trạng thái view sau khi Android đóng tiến trình); bỏ xin `BLUETOOTH_CONNECT` mỗi lần `onStart` (trùng requestCode với PermissionsAndroid → kết quả quyền trả nhầm, yêu cầu quyền treo).
+  - WebView: tiến trình render (Android) bị dừng → dựng lại; tiến trình nội dung (iOS) bị dừng → tải lại; lỗi tải → màn lỗi có nút Thử lại.
+  - Không còn 4 yêu cầu quyền chạy chồng lúc khởi động.
+  - Màn khởi động native tím (Android `windowBackground` + Splash Screen API, iOS LaunchScreen) – trước đây đen (DayNight) / trắng.
+  - `components/Boot.tsx`: màn khởi động → cấp quyền (lần đầu) → Điều khoản (lần đầu) → callbox; màn khởi động giữ tới khi trang kế tiếp tải xong (tối đa 20 giây).
+- UAT-02: màn giải thích quyền (micro, thông báo, thiết bị lân cận/Bluetooth) trước khi xin; lớp phủ tím mờ + mũi tên ngoằn ngoèo chỉ nút cho phép mỗi khi hộp thoại quyền hiện (`services/permissions.ts`, `components/PermissionOverlay.tsx`). iOS: xin micro qua `LocalStorageIosModule.requestMicrophone`.
+
 ### 1.0.3
 
 - Lần đầu mở app sau khi cài: bắt buộc cuộn đọc hết Điều khoản dịch vụ (https://terms.gcalls.co/terms/terms-of-service, máy tiếng Việt dùng bản /vi/) mới hiện nút "Đồng ý"; đồng ý một lần (lưu `termsAcceptedVersion`) rồi vào callbox (`components/TermsGate.tsx`, bọc ở `index.js`).

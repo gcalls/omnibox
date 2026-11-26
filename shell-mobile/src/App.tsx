@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Linking } from 'react-native';
-import { NativeEventEmitter, NativeModules,  } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import { View, Text, TouchableOpacity, PanResponder, AppState } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,11 +9,11 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 const { UserActivityModule } = NativeModules;
 
 // Gcalls IOS
-const eventEmitter = new NativeEventEmitter(UserActivityModule);
+// Chỉ iOS có UserActivityModule (Android: undefined → không tạo emitter)
+const eventEmitter = Platform.OS === 'ios' && UserActivityModule ? new NativeEventEmitter(UserActivityModule) : null;
 
 import {
   StyleSheet,
-  Platform,
   BackHandler,
   Alert,
 } from 'react-native';
@@ -22,7 +22,6 @@ import {
 import Spinner from 'react-native-loading-spinner-overlay';
 import WebView from 'react-native-webview';
 import Contact from './components/contact';
-import { requestAudioRecordPermission } from './gModules/gAndroidPermission';
 import { gConst } from './utils/gConst';
 import pushNotificationService from './services/pushNotification';
 import { getDataFromLocalStorage, saveDataToLocalStorage, setupAndroidSpeakerOff, setupAndroidSpeakerOn } from './gModules/gNativeAndroidModule';
@@ -35,7 +34,19 @@ import {BASE_URL} from '@env'
 import { checkForUpdate, formatVersion, getAppInfo } from './services/appUpdate';
 
 
-function App(): React.JSX.Element {
+// onReady: trang callbox tải xong lần đầu (hoặc lỗi) → Boot tắt màn khởi động
+function App({ onReady }: { onReady?: () => void }): React.JSX.Element {
+  const readySent = useRef(false)
+  const markReady = () => {
+    if (!readySent.current) {
+      readySent.current = true
+      onReady?.()
+    }
+  }
+  // Lỗi tải trang / tiến trình WebView bị hệ thống dừng → hiện màn lỗi có nút thử lại (không để màn đen)
+  const [loadError, setLoadError] = useState(false)
+  const [webKey, setWebKey] = useState(0)
+
 
   const [isVisible, setVisible] = useState(false)
   // Phiên bản đang cài, vd. "Omnibox 1.0.2 (42)" – hiện dưới vòng xoay khi tải trang và luôn ở góc dưới trái
@@ -85,7 +96,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
 
     initPhoneNumber();
-    pushNotificationService.configure();
+    // Quyền thông báo/micro/Bluetooth: xin ở màn cấp quyền (components/Boot.tsx), không xin chồng lúc khởi động
 
     let channelObj = {
       channelId: "Gcalls",
@@ -97,9 +108,6 @@ function App(): React.JSX.Element {
 
     if (Platform.OS === gConst.IOS) {
       // code for iOS
-    } else if (Platform.OS === gConst.ANDROID) {
-      // code for Android
-      requestPermistion()
     }
 
   }, []);
@@ -109,15 +117,14 @@ function App(): React.JSX.Element {
   useEffect(() => {
     // Add a listener to handle receive phone number from native ( IOS )
 
-    eventEmitter.addListener('continueUserActivity', (event: any) => {
-
+    const sub = eventEmitter?.addListener('continueUserActivity', (event: any) => {
       if (event?.phoneNumber) {
         setPhoneNumber(event.phoneNumber);
-
       }
     });
 
     updatePhoneNumToCallbox()
+    return () => sub?.remove();
   }, [phoneNumber]);
 
   // -----------------------------------------------------------------------------------
@@ -136,7 +143,7 @@ function App(): React.JSX.Element {
       }
     }).catch(err => console.error('An error occurred', err));
 
-    Linking.addEventListener('url', (event) => {
+    const linkSub = Linking.addEventListener('url', (event) => {
       // console.log('Linking.addEventListener', event);
       if (event.url) {
         // get phone number from tel: link
@@ -148,7 +155,7 @@ function App(): React.JSX.Element {
     });
     
           return () => {
-            Linking.removeAllListeners('url');
+            linkSub.remove();
           };
     
   }, []);
@@ -170,10 +177,6 @@ function App(): React.JSX.Element {
   }, []);
   // -----------------------------------------------------------------------------------
 
-  function requestPermistion() {
-    requestAudioRecordPermission();
-  }
-
   function doShowSpinner() {
     setVisible(true)
   }
@@ -188,13 +191,14 @@ function App(): React.JSX.Element {
   const onAndroidBackPress = () => {
 
     // Handle problem at fogot password page from keycloak 
+    if (!webViewRef.current) return false
     if (webViewRef.current.canGoBack) {
       webViewRef.current.goBack();
       return true
 
     } else {
 
-      webViewRef.current.injectJavaScript(`window.location.href = '${uri}';`);
+      webViewRef.current?.injectJavaScript(`window.location.href = '${uri}';`);
       return true
 
     }
@@ -215,7 +219,7 @@ function App(): React.JSX.Element {
 
 
       let data = { phoneNumber: phoneNumber }
-      webViewRef.current.injectJavaScript(doSendDatatoWebView(data));
+      webViewRef.current?.injectJavaScript(doSendDatatoWebView(data));
     }
 
     
@@ -233,7 +237,6 @@ function App(): React.JSX.Element {
     } else if (Platform.OS === 'android') {
       // code for Android
       result = await getDataFromLocalStorage(gConst.PHONE_NUMBER)
-      requestPermistion()
     }
 
     if (result) {
@@ -301,7 +304,7 @@ function App(): React.JSX.Element {
       `;
 
       if (webViewRef.current) {
-        webViewRef.current.injectJavaScript(injectScript);
+        webViewRef.current?.injectJavaScript(injectScript);
       }
 
       return false; // Prevent the WebView from navigating to urls
@@ -355,7 +358,7 @@ function App(): React.JSX.Element {
         ;
 
       if (webViewRef.current) {
-        webViewRef.current.injectJavaScript(injectScript);
+        webViewRef.current?.injectJavaScript(injectScript);
       }
     }
   }
@@ -383,7 +386,7 @@ function App(): React.JSX.Element {
       `;
 
       if (webViewRef.current) {
-        webViewRef.current.injectJavaScript(injectScript);
+        webViewRef.current?.injectJavaScript(injectScript);
       }
     }
   };
@@ -407,7 +410,7 @@ function App(): React.JSX.Element {
 
   const onSwipeRight = () => {
     // console.log('right')
-    webViewRef.current.injectJavaScript(`window.location.href = '${uri}';`);
+    webViewRef.current?.injectJavaScript(`window.location.href = '${uri}';`);
 
 
   };
@@ -467,8 +470,19 @@ function App(): React.JSX.Element {
             uri:
               uri,
           }}
-          onLoadStart={() => (doShowSpinner())}
+          key={webKey}
+          onLoadStart={() => (readySent.current ? doShowSpinner() : null)}
           onLoad={() => (doHideSpinner())}
+          onLoadEnd={() => markReady()}
+          onError={() => {
+            setVisible(false)
+            setLoadError(true)
+            markReady()
+          }}
+          // iOS: tiến trình nội dung WKWebView bị dừng (nền lâu / thiếu RAM) → tải lại thay vì để màn trống
+          onContentProcessDidTerminate={() => webViewRef.current?.reload()}
+          // iOS: micro đã cấp ở màn cấp quyền → WKWebView không hỏi lại theo từng trang
+          mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
           onNavigationStateChange={onNavigationStateChange}
           useWebKit={true}
           scalesPageToFit={true}
@@ -484,14 +498,29 @@ function App(): React.JSX.Element {
           mediaPlaybackRequiresUserAction={false}
           allowsInlineMediaPlayback={true}
           cacheEnabled={true}
+          // Android: tiến trình render của WebView bị hệ thống dừng (thiếu RAM khi app nằm nền) → dựng lại WebView.
+          // Không xử lý thì WebView chết để lại màn đen; trên một số máy hệ thống còn dừng luôn app.
           onRenderProcessGone={syntheticEvent => {
-            const { nativeEvent } = syntheticEvent;
-            console.warn(
-              'WebView Crashed: ',
-              nativeEvent.didCrash,
-            );
+            console.warn('WebView render process gone, didCrash=', syntheticEvent.nativeEvent.didCrash);
+            setVisible(false)
+            setWebKey(k => k + 1)
           }}
         />
+        {loadError ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorTitle}>{vi ? 'Không kết nối được tổng đài' : 'Could not reach the call center'}</Text>
+            <Text style={styles.errorText}>{vi ? 'Kiểm tra kết nối mạng rồi thử lại.' : 'Check your connection and try again.'}</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.retryButton}
+              onPress={() => {
+                setLoadError(false)
+                setWebKey(k => k + 1)
+              }}>
+              <Text style={styles.retryText}>{vi ? 'Thử lại' : 'Retry'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         {/* Nhãn phiên bản luôn hiện, đè lên callbox ở góc dưới trái (góc dưới phải là nút gọi của callbox);
             pointerEvents="none" để không chặn thao tác trên trang */}
         {versionLabel ? (
@@ -505,7 +534,26 @@ function App(): React.JSX.Element {
 }
 
 
+const vi = (() => {
+  try {
+    return /^vi/i.test(Intl.DateTimeFormat().resolvedOptions().locale);
+  } catch (e) {
+    return false;
+  }
+})();
+
 const styles = StyleSheet.create({
+  errorBox: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  errorTitle: { fontSize: 18, fontWeight: '700', color: '#1f1b2e', textAlign: 'center' },
+  errorText: { fontSize: 15, color: '#615b73', textAlign: 'center', marginTop: 8, marginBottom: 20 },
+  retryButton: { backgroundColor: '#673ab7', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 40 },
+  retryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   versionBadge: {
     position: 'absolute',
     left: 6,

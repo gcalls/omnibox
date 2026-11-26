@@ -1,16 +1,14 @@
-// Lần đầu mở app sau khi cài: bắt buộc đọc hết Điều khoản dịch vụ (cuộn tới cuối trang) rồi mới hiện nút
-// "Đồng ý" – bấm một lần duy nhất (lưu vào bộ nhớ của app), sau đó vào callbox.gcalls.co.
+// Lần đầu mở app (sau màn cấp quyền): bắt buộc đọc hết Điều khoản dịch vụ (cuộn tới cuối trang) rồi mới hiện nút
+// "Đồng ý" – bấm một lần duy nhất (Boot lưu cờ), sau đó vào callbox.gcalls.co. Điều phối: components/Boot.tsx.
 // Trang: https://terms.gcalls.co/terms/terms-of-service (máy dùng tiếng Việt → bản /terms/vi/…).
-import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import WebView from 'react-native-webview';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { getDataFromLocalStorage, saveDataToLocalStorage } from '../gModules/gNativeAndroidModule';
-import { getDataFromStorageIos, saveDataToStorageIos } from '../gModules/gNativeIosModule';
 
 // Đổi giá trị khi điều khoản thay đổi lớn và cần người dùng đồng ý lại
-const TERMS_KEY = 'termsAcceptedVersion';
-const TERMS_VERSION = '2026-11-25';
+export const TERMS_KEY = 'termsAcceptedVersion';
+export const TERMS_VERSION = '2026-11-25';
 const TERMS_HOST = 'https://terms.gcalls.co';
 
 const vi = (() => {
@@ -46,38 +44,12 @@ const DETECT_BOTTOM = `
 true;
 `;
 
-async function readAccepted(): Promise<string> {
-  try {
-    const v = Platform.OS === 'ios' ? await getDataFromStorageIos(TERMS_KEY) : await getDataFromLocalStorage(TERMS_KEY);
-    return v || '';
-  } catch (e) {
-    return '';
-  }
-}
-
-async function saveAccepted() {
-  if (Platform.OS === 'ios') await saveDataToStorageIos(TERMS_KEY, TERMS_VERSION);
-  else await saveDataToLocalStorage(TERMS_KEY, TERMS_VERSION);
-}
-
-export default function TermsGate({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<'checking' | 'required' | 'accepted'>('checking');
+/** Màn Điều khoản dịch vụ (Boot hiển thị ở lần mở đầu tiên). onReady: trang đã tải xong / lỗi → Boot bỏ màn
+ *  khởi động; onAccepted: người dùng bấm Đồng ý (Boot lưu cờ TERMS_KEY = TERMS_VERSION). */
+export default function TermsScreen({ onReady, onAccepted }: { onReady: () => void; onAccepted: () => void }) {
   const [readToEnd, setReadToEnd] = useState(false);
   const [failed, setFailed] = useState(false);
   const webRef = useRef<any>(null);
-
-  useEffect(() => {
-    readAccepted().then(v => setState(v === TERMS_VERSION ? 'accepted' : 'required'));
-  }, []);
-
-  if (state === 'accepted') return <>{children}</>;
-  if (state === 'checking') {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#673ab7" />
-      </View>
-    );
-  }
 
   return (
     <SafeAreaProvider>
@@ -101,14 +73,18 @@ export default function TermsGate({ children }: { children: React.ReactNode }) {
         source={{ uri: TERMS_URL }}
         injectedJavaScript={DETECT_BOTTOM}
         onMessage={e => e.nativeEvent.data === 'terms-read' && setReadToEnd(true)}
-        onError={() => setFailed(true)}
-        onHttpError={() => setFailed(true)}
-        startInLoadingState
-        renderLoading={() => (
-          <View style={styles.center}>
-            <ActivityIndicator color="#673ab7" />
-          </View>
-        )}
+        onLoadEnd={onReady}
+        onError={() => {
+          setFailed(true);
+          onReady();
+        }}
+        onHttpError={() => {
+          setFailed(true);
+          onReady();
+        }}
+        // iOS: tiến trình nội dung WebView bị hệ thống dừng (thiếu RAM / nền lâu) → tải lại, tránh màn trống
+        onContentProcessDidTerminate={() => webRef.current?.reload()}
+        onRenderProcessGone={() => setFailed(true)}
         // Chỉ xem trong trang điều khoản; link ra ngoài (email, gcalls.co…) mở bằng trình duyệt/ứng dụng của máy
         onShouldStartLoadWithRequest={req => {
           if (req.url.startsWith(TERMS_HOST) || req.url === 'about:blank') return true;
@@ -121,10 +97,7 @@ export default function TermsGate({ children }: { children: React.ReactNode }) {
           <TouchableOpacity
             accessibilityRole="button"
             style={styles.button}
-            onPress={async () => {
-              await saveAccepted();
-              setState('accepted');
-            }}>
+            onPress={onAccepted}>
             <Text style={styles.buttonText}>{T.agree}</Text>
           </TouchableOpacity>
         ) : (

@@ -6,6 +6,7 @@
 //
 
 #import "LocalStorageIosModule.h"
+#import <AVFoundation/AVFoundation.h>
 
 @implementation LocalStorageIosModule
 RCT_EXPORT_MODULE();
@@ -38,6 +39,25 @@ RCT_EXPORT_METHOD(getAppInfo:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromis
         @"build": info[@"CFBundleVersion"] ?: @"",
         @"bundleId": [[NSBundle mainBundle] bundleIdentifier] ?: @"",
     });
+}
+
+// Quyền micro (màn hình cấp quyền lần đầu – components/Boot.tsx): "granted" | "denied" | "undetermined"
+static NSString *MicStatus(void) {
+    switch ([[AVAudioSession sharedInstance] recordPermission]) {
+        case AVAudioSessionRecordPermissionGranted: return @"granted";
+        case AVAudioSessionRecordPermissionDenied: return @"denied";
+        default: return @"undetermined";
+    }
+}
+
+RCT_EXPORT_METHOD(microphonePermission:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    resolve(MicStatus());
+}
+
+RCT_EXPORT_METHOD(requestMicrophone:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    [[AVAudioSession sharedInstance] requestRecordPermission:^(BOOL granted) {
+        resolve(granted ? @"granted" : @"denied");
+    }];
 }
 
 @end

@@ -11,6 +11,22 @@ Quy ước:
 - Mỗi ngôn ngữ tối đa khoảng 450 ký tự (Google Play giới hạn 500, đã tính dòng phiên bản).
 - Merge vào `main` mà thiếu mục của phiên bản → CI dừng trước khi phát hành.
 
+## 1.0.4
+
+### vi
+
+- Sửa lỗi ứng dụng bị dừng hoặc kẹt màn hình đen khi mở lại từ đa nhiệm.
+- Màn hình khởi động mới: chờ tổng đài sẵn sàng rồi mới vào, không còn nháy hay màn đen.
+- Lần đầu sử dụng: giải thích lý do trước khi xin quyền micro, thông báo, thiết bị lân cận; hướng dẫn bấm "Cho phép".
+- Tự kết nối lại khi mất mạng hoặc trang tổng đài bị gián đoạn.
+
+### en-US
+
+- Fixed the app stopping or getting stuck on a black screen when reopened from recent apps.
+- New startup screen: waits until the call center is ready, no more flicker or black screen.
+- First launch: explains why microphone, notification and nearby-device permissions are needed and guides you to tap "Allow".
+- Reconnects automatically when the network or the call center page is interrupted.
+
 ## 1.0.3
 
 ### vi
