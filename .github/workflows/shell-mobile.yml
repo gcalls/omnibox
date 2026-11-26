@@ -14,8 +14,9 @@
 #  Chỉ build nền tảng có code thay đổi (src/android, src/ios) hoặc code dùng chung (src/ còn lại, bundle 1config).
 #  Cấu hình: main → `1config/cp.sh production`, test/khác → `1config/cp.sh internal`.
 #  Phát hành (Marketplace actions + script API, đọc credential trực tiếp từ 1config đã giải mã):
-#    test   Android → Google Play PLAY_TRACK (internal + open testing beta – tester nội bộ và tester ngoài)
-#           iOS     → TestFlight: tester nội bộ nhận ngay; nhóm tester ngoài TESTFLIGHT_EXTERNAL_GROUP sau Beta App Review
+#    test   Android → Google Play PLAY_TRACK = internal, alpha (closed), beta (open) + Internal App Sharing (link trong Summary)
+#           iOS     → TestFlight: tester nội bộ nhận ngay; nhóm tester ngoài TESTFLIGHT_EXTERNAL_GROUP (kèm link công khai)
+#                     sau Beta App Review
 #    main   Android → Google Play production (phát hành đại trà sau khi Google duyệt)
 #           iOS     → TestFlight + nộp App Store Review (bỏ qua kèm cảnh báo nếu phiên bản khác đang chờ duyệt)
 #    shell-mobile/store.sha256 thay đổi (nội dung 1config/store trong bundle mã hoá) → main: đồng bộ trang
@@ -182,6 +183,10 @@ jobs:
           tracks: ${{ steps.cfg.outputs.track }}
           status: ${{ steps.cfg.outputs.release_status }}
           whatsNewDirectory: shell-mobile/1config/store/android/whatsnew
+
+      - name: Google Play Internal App Sharing (link cài ngay, không cần review)
+        if: github.ref_name == 'test' && steps.cfg.outputs.has_play == 'true' && steps.cfg.outputs.play_upload == 'true'
+        run: bash scripts/play-internal-sharing.sh "$(ls -1 dist/*.aab | head -n1)"
 
       - name: Dọn cấu hình đã giải mã
         if: always()

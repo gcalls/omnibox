@@ -69,7 +69,7 @@ Phát hành lên store bằng GitHub Marketplace actions và script API (không 
 
 | Nhánh | Android | iOS |
 | --- | --- | --- |
-| `test` | Google Play `PLAY_TRACK` = `internal,beta`: tester nội bộ (internal) và tester ngoài (open testing) | TestFlight: tester nội bộ nhận ngay; nhóm "Omnibox External" sau Beta App Review (`scripts/ios_testflight_external.py`) |
+| `test` | Google Play `PLAY_TRACK` = `internal,alpha,beta` (internal testing, closed testing, open testing) + Internal App Sharing (link cài ngay trong Summary của lần chạy, `scripts/play-internal-sharing.sh`) | TestFlight: tester nội bộ nhận ngay; nhóm "Omnibox External" (gồm link công khai) sau Beta App Review (`scripts/ios_testflight_external.py`) |
 | `main` | Google Play production – phát hành đại trà sau khi Google duyệt | TestFlight + nộp App Store Review (`scripts/ios_submit.py`; bỏ qua kèm cảnh báo nếu phiên bản khác đang chờ duyệt) |
 
 Chỉ nền tảng có code thay đổi mới được build và phát hành: `src/android/**` → Android, `src/ios/**` → iOS, phần còn lại của `src/` (code dùng chung, kể cả `package.json`) hoặc `1config.tar.gpg` → cả hai.
