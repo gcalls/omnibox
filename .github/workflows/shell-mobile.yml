@@ -154,7 +154,8 @@ jobs:
           # main → production; test → PLAY_TRACK (danh sách track, vd. internal,beta). Trạng thái: draft cho tới khi app được phát hành lần đầu.
           [ "$GITHUB_REF_NAME" = main ] && echo "track=production" >> "$GITHUB_OUTPUT" || echo "track=$(sed -n 's/^PLAY_TRACK=//p' 1config/android/app.env)" >> "$GITHUB_OUTPUT"
           if [ -f 1config/android/play-service-account.json ]; then
-            echo "release_status=$(bash scripts/play-release-status.sh)" >> "$GITHUB_OUTPUT"
+            st="$(bash scripts/play-release-status.sh)"   # lỗi API → bước này lỗi, không upload nhầm dạng draft
+            echo "release_status=$st" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Cache node_modules
