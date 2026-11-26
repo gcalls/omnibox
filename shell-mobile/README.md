@@ -74,6 +74,7 @@ Phát hành lên store bằng GitHub Marketplace actions và script API (không 
 
 Chỉ nền tảng có code thay đổi mới được build và phát hành: `src/android/**` → Android, `src/ios/**` → iOS, phần còn lại của `src/` (code dùng chung, kể cả `package.json`) hoặc `1config.tar.gpg` → cả hai.
 
+- Ghi chú phát hành: thêm mục `## <version>` (có `### vi`, `### en-US`) vào [RELEASE_NOTES.md](RELEASE_NOTES.md) mỗi khi tăng version. CI đưa lên Google Play "Có gì mới", App Store "What's New" và TestFlight "What to Test", dòng đầu là "Phiên bản x.y.z". Merge vào `main` mà thiếu mục này thì CI dừng.
 - versionCode Android = `major×10000000 + minor×100000 + patch×1000 + (số lần chạy CI % 1000)`, nên MINOR và PATCH phải < 100.
 - Khi khởi động, app hiện `Omnibox <version> (<build>)` dưới vòng xoay tải trang và gửi `appVersion`/`appBuild` vào WebView.
 - Yêu cầu cập nhật (`src/services/appUpdate.js`): store có bản mới đổi major/minor → bắt buộc (Android: Google Play In-App Updates toàn màn hình; iOS: hộp thoại chỉ có nút Cập nhật, mở App Store); chỉ đổi patch → nhắc, cho bỏ qua. Android chỉ hoạt động với bản cài từ Google Play.

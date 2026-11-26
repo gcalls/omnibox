@@ -45,10 +45,13 @@ def main():
         s.call("PATCH", f"/v1/builds/{bid}", {"data": {"type": "builds", "id": bid,
                "attributes": {"usesNonExemptEncryption": False}}})
 
-    # 3. What to Test
+    # 3. What to Test: ghi chú phát hành (scripts/release-notes.py ghi vào 1config/store/ios/<locale>/release_notes.txt)
     sha = os.environ.get("GITHUB_SHA", "")[:7]
-    notes = {"en-US": f"Omnibox {a.version} ({a.build}) – test build {sha}".strip(),
-             "vi": f"Omnibox {a.version} ({a.build}) – bản thử nghiệm {sha}".strip()}
+    notes = {}
+    for loc, label in (("en-US", "build"), ("vi", "bản build")):
+        f = os.path.join(s.STORE, "ios", loc, "release_notes.txt")
+        body = open(f, encoding="utf-8").read().strip() if os.path.isfile(f) else f"Omnibox {a.version}"
+        notes[loc] = f"{body}\n\n({label} {a.build} {sha})".strip()
     have = {x["attributes"]["locale"]: x["id"] for x in s.call("GET", f"/v1/builds/{bid}/betaBuildLocalizations")["data"]}
     for loc, text in notes.items():
         try:

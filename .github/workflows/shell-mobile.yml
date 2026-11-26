@@ -123,6 +123,10 @@ jobs:
           echo "APP_VERSION=$v" >> "$GITHUB_ENV"; echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
           echo "Phiên bản $v, versionCode $code"
 
+      # "Có gì mới" / "What's New" / "What to Test" của phiên bản này, từ shell-mobile/RELEASE_NOTES.md (main: bắt buộc có)
+      - name: Ghi chú phát hành ${{ env.APP_VERSION }}
+        run: python3 -I scripts/release-notes.py --version "$APP_VERSION" ${{ github.ref_name == 'main' && '--strict' || '' }}
+
       # Biến không bí mật từ 1config/android/app.env (APP_ID, PLAY_TRACK, PLAY_UPLOAD)
       - name: Đọc 1config/android/app.env
         id: cfg
@@ -224,6 +228,10 @@ jobs:
           gpg --batch --yes --quiet --pinentry-mode loopback --decrypt \
               --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
           bash 1config/cp.sh "$CONFIG_MODE"
+
+      # "Có gì mới" / "What's New" / "What to Test" của phiên bản này, từ shell-mobile/RELEASE_NOTES.md (main: bắt buộc có)
+      - name: Ghi chú phát hành ${{ env.APP_VERSION }}
+        run: python3 -I scripts/release-notes.py --version "$APP_VERSION" ${{ github.ref_name == 'main' && '--strict' || '' }}
 
       # Có đủ bộ ký trong 1config (tạo bằng 1config/appconnect/asc-signing.sh) thì build bản ký App Store,
       # không thì build IPA không ký như trước.
@@ -350,6 +358,10 @@ jobs:
           gpg --batch --yes --quiet --pinentry-mode loopback --decrypt \
               --passphrase "$ONECONFIG_GPG_PASSPHRASE" 1config.tar.gpg | tar -xz
           bash 1config/cp.sh production
+      - name: Phiên bản từ package.json
+        run: echo "APP_VERSION=$(python3 -c 'import json;print(json.load(open("src/package.json"))["version"])')" >> "$GITHUB_ENV"
+      - name: Ghi chú phát hành ${{ env.APP_VERSION }}
+        run: python3 -I scripts/release-notes.py --version "$APP_VERSION" --strict
       - name: Pillow (chuyển WebP → PNG, chỉnh kích thước screenshot)
         run: python3 -m pip install --quiet pillow
       - name: Google Play (listing, icon, feature graphic, screenshot, liên hệ)
