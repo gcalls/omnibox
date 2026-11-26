@@ -14,7 +14,8 @@ public class LocalStorageModulePackage implements ReactPackage {
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
-        modules.add(new LocalStorageModule(reactContext)); 
+        modules.add(new LocalStorageModule(reactContext));
+        modules.add(new AppUpdateModule(reactContext));
         return modules;
     }
 

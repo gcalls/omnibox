@@ -27,10 +27,7 @@ store=false
 shots_android=false
 shots_ios=false
 
-if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
-  android=true; ios=true; store=true
-  echo "Tag phát hành ${GITHUB_REF#refs/tags/} → build cả hai + đồng bộ store"
-elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
   case "${PLATFORM:-both}" in
     android) android=true ;;
     ios)     ios=true ;;

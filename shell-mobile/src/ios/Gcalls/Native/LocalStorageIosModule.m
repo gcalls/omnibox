@@ -29,4 +29,15 @@ RCT_EXPORT_METHOD(getData:(NSString *)key resolver:(RCTPromiseResolveBlock)resol
     }
 }
 
+// Phiên bản app (CFBundleShortVersionString), số build (CFBundleVersion) và bundle id – hiện khi khởi động,
+// so với App Store để yêu cầu cập nhật (services/appUpdate.js)
+RCT_EXPORT_METHOD(getAppInfo:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    NSDictionary *info = [[NSBundle mainBundle] infoDictionary];
+    resolve(@{
+        @"version": info[@"CFBundleShortVersionString"] ?: @"",
+        @"build": info[@"CFBundleVersion"] ?: @"",
+        @"bundleId": [[NSBundle mainBundle] bundleIdentifier] ?: @"",
+    });
+}
+
 @end

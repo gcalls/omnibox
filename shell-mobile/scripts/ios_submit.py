@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ios_submit.py – nộp phiên bản lên App Store Review (dùng khi đẩy tag v*), không fastlane.
+"""ios_submit.py – nộp phiên bản lên App Store Review (CI: merge vào main), không fastlane.
 
   1. Chờ build <version> (<build>) vừa upload xử lý xong trên App Store Connect
   2. Khai báo build không dùng mã hoá ngoài miễn trừ (khớp ITSAppUsesNonExemptEncryption = NO)
@@ -41,6 +41,20 @@ def main():
     if build["attributes"].get("usesNonExemptEncryption") is None:
         s.call("PATCH", f"/v1/builds/{build['id']}", {"data": {"type": "builds", "id": build["id"],
                "attributes": {"usesNonExemptEncryption": False}}})
+
+    # Phiên bản khác (hoặc chính nó) đang chờ duyệt / chờ phát hành → App Store không cho tạo hay nộp
+    # phiên bản mới. Build vẫn có trên TestFlight; merge main lần sau (hoặc chạy lại job) sẽ nộp.
+    IN_FLIGHT = ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "PENDING_APPLE_RELEASE",
+                 "PROCESSING_FOR_APP_STORE", "READY_FOR_REVIEW", "WAITING_FOR_EXPORT_COMPLIANCE", "PENDING_CONTRACT", "ACCEPTED")
+    allv = s.call("GET", f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=IOS&limit=50")["data"]
+    flying = next((v for v in allv if v["attributes"]["appStoreState"] in IN_FLIGHT), None)
+    if flying:
+        fv, fs = flying["attributes"]["versionString"], flying["attributes"]["appStoreState"]
+        print(f"::warning::Phiên bản {fv} đang {fs} – chưa nộp {a.version} ({a.build}). Build đã có trên TestFlight; "
+              f"nộp lại sau khi {fv} được phát hành (PENDING_DEVELOPER_RELEASE = bấm phát hành trên App Store Connect).")
+        return
+    if any(v["attributes"]["versionString"] == a.version and v["attributes"]["appStoreState"] == "READY_FOR_SALE" for v in allv):
+        sys.exit(f"Phiên bản {a.version} đã phát hành – tăng \"version\" trong shell-mobile/src/package.json")
 
     # 3. Metadata
     r = subprocess.run([sys.executable, "-I", os.path.join(s.ROOT, "scripts/store_sync_ios.py"), "--version", a.version])

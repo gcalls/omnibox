@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 1.0.1
+
+- Bỏ hoàn toàn Firebase: xoá `google-services.json`, `GoogleService-Info.plist`, `firebase-service-account.json`, biến `FIREBASE_*` và bước Firebase App Distribution trong CI (app không dùng SDK Firebase nào). App chỉ phụ thuộc `callbox.gcalls.co`.
+- iOS 18.2+: thêm entitlement `com.apple.developer.calling-app` để Omnibox xuất hiện trong Settings → Apps → Default Apps → Calling; `SceneDelegate` nhận số cần gọi qua `startCallHandle` (ngoài `INStartCallIntent`).
+- CI: nhánh `test` → Google Play internal + open testing (beta) và TestFlight (tester nội bộ + nhóm "Omnibox External" qua Beta App Review); nhánh `main` → Google Play production + nộp App Store Review. Chỉ phát hành nền tảng có code thay đổi. Bỏ trigger tag `v*`; phiên bản lấy từ `src/package.json`; versionCode Android mã hoá major/minor/patch.
+- Hiện phiên bản `Omnibox <version> (<build>)` khi khởi động; yêu cầu cập nhật khi store có bản mới (bắt buộc nếu đổi major/minor, nhắc nếu chỉ đổi patch) – Android dùng Google Play In-App Updates (`com.google.android.play:app-update`), iOS dùng iTunes Lookup API.
+
 ### Bảo mật
 
 - Gỡ khỏi repo: chứng chỉ, provisioning profile, dSYM, `google-services.json`, thông tin App Review và danh sách tester. Các file này chuyển vào bundle cấu hình `1config` (mã hoá gpg).

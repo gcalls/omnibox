@@ -39,28 +39,27 @@ name="${branch}-${version}"
 extra=(); [ -n "${BUILD_NUMBER:-}" ] && extra+=("CURRENT_PROJECT_VERSION=$BUILD_NUMBER")
 [ -n "${APP_VERSION:-}" ] && { extra+=("MARKETING_VERSION=$APP_VERSION"); version="$APP_VERSION"; name="${branch}-${version}"; }
 [ "$SIGNED" = 1 ] || extra+=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="")
-echo "Build iOS $bundle_id $version (build ${BUILD_NUMBER:-mặc định}) → ${name}.ipa | ký: $([ "$SIGNED" = 1 ] && echo "có, profile \"$profile\", team $team" || echo không) | $(xcodebuild -version | head -1)"
 
-rm -rf "$ARCHIVE"
-xcodebuild \
-  -workspace "$IOS/Gcalls.xcworkspace" \
-  -scheme Gcalls \
-  -configuration Release \
-  -sdk iphoneos \
-  -destination 'generic/platform=iOS' \
-  -derivedDataPath "$DERIVED" \
-  -archivePath "$ARCHIVE" \
-  "${extra[@]}" \
-  -quiet \
-  archive
-
-mkdir -p "$OUT_DIR"
+# Entitlement "Default Calling App" (com.apple.developer.calling-app): build kèm entitlement trước. Nếu Xcode từ
+# chối ký vì profile không cho phép entitlement này → build lại không có nó (cảnh báo) để CI không gãy.
+archive() {
+  rm -rf "$ARCHIVE"
+  xcodebuild \
+    -workspace "$IOS/Gcalls.xcworkspace" \
+    -scheme Gcalls \
+    -configuration Release \
+    -sdk iphoneos \
+    -destination 'generic/platform=iOS' \
+    -derivedDataPath "$DERIVED" \
+    -archivePath "$ARCHIVE" \
+    "${extra[@]}" "$@" \
+    -quiet \
+    archive
+}
+mkdir -p "$OUT_DIR" "$IOS/build"
 rm -f "$OUT_DIR/${name}.ipa"
-
-if [ "$SIGNED" = 1 ]; then
-  export_dir="$IOS/build/export"; rm -rf "$export_dir"
-  plist="$IOS/build/ExportOptions.plist"
-  cat > "$plist" <<EOF
+export_dir="$IOS/build/export"; plist="$IOS/build/ExportOptions.plist"
+cat > "$plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -72,7 +71,27 @@ if [ "$SIGNED" = 1 ]; then
   <key>destination</key><string>export</string>
 </dict></plist>
 EOF
+# archive (+ export khi ký); chạy lại không có entitlement nếu lỗi do calling-app
+build_once() {
+  archive "$@" || return 1
+  [ "$SIGNED" = 1 ] || return 0
+  rm -rf "$export_dir"
   xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$plist" -exportPath "$export_dir" -quiet
+}
+log="$(mktemp)"
+if ! build_once 2>&1 | tee "$log"; then
+  if [ "$SIGNED" = 1 ] && grep -q "calling-app" "$log"; then
+    echo "::warning::Profile \"$profile\" không cho phép com.apple.developer.calling-app – build lại không có entitlement Default Calling App"
+    ent_src="$IOS/$(setting CODE_SIGN_ENTITLEMENTS)"; ent_tmp="$IOS/build/ci.entitlements"
+    cp "$ent_src" "$ent_tmp"; plutil -remove com.apple.developer.calling-app "$ent_tmp"
+    build_once "CODE_SIGN_ENTITLEMENTS=$ent_tmp"
+  else
+    exit 1
+  fi
+fi
+rm -f "$log"
+
+if [ "$SIGNED" = 1 ]; then
   ipa="$(find "$export_dir" -maxdepth 1 -name '*.ipa' | head -n1)"
   [ -n "$ipa" ] || { echo "exportArchive không tạo ra .ipa" >&2; exit 1; }
   mv "$ipa" "$OUT_DIR/${name}.ipa"

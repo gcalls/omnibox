@@ -32,11 +32,15 @@ import gScreenSetting from './utils/gScreenSetting';
 import { handleWebViewMessage } from './gModules/gWebViewMessage';
 import AppStateModule from './gModules/gAppStateModule';
 import {BASE_URL} from '@env'
+import { checkForUpdate, formatVersion, getAppInfo } from './services/appUpdate';
 
 
 function App(): React.JSX.Element {
 
   const [isVisible, setVisible] = useState(false)
+  // Phiên bản đang cài, vd. "Omnibox 1.0.1 (42)" – hiện dưới vòng xoay khi khởi động / tải trang
+  const [versionLabel, setVersionLabel] = useState('')
+  const appInfoRef = useRef<any>(null)
 
 
   const [uri, setUri] = useState(BASE_URL)
@@ -64,6 +68,19 @@ function App(): React.JSX.Element {
     };
   }, [appState, setAppStateVisible, webViewRef]);
   // -----------------------------------------------------------------------------------
+
+  // Phiên bản + yêu cầu cập nhật khi store có bản mới (khởi động và mỗi lần quay lại foreground)
+  useEffect(() => {
+    getAppInfo().then(info => {
+      appInfoRef.current = info;
+      setVersionLabel(formatVersion(info));
+    });
+    checkForUpdate();
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') checkForUpdate();
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
 
@@ -230,6 +247,10 @@ function App(): React.JSX.Element {
 
     pData.isCallBoxFromMobile = true
     pData.os = Platform.OS
+    if (appInfoRef.current?.version) {
+      pData.appVersion = appInfoRef.current.version
+      pData.appBuild = appInfoRef.current.build
+    }
     let data = JSON.stringify(pData)
 
 
@@ -418,7 +439,7 @@ function App(): React.JSX.Element {
 
         <Spinner
           visible={isVisible}
-          textContent={'Loading...'}
+          textContent={versionLabel ? `Loading...\n${versionLabel}` : 'Loading...'}
           textStyle={{ color: '#FFF' }}
         />
 

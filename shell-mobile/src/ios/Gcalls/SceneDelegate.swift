@@ -60,8 +60,16 @@ class SceneDelegate: RCTDefaultReactNativeFactoryDelegate, UIWindowSceneDelegate
     RCTLinkingManager.scene(scene, continue: userActivity)
   }
 
-  /// Số điện thoại trong intent gọi điện (INStartCallIntent iOS 13+, INStartAudioCallIntent cũ)
+  /// Số điện thoại cần gọi:
+  ///  - iOS 18.2+: Omnibox là app gọi mặc định (Settings > Apps > Default Apps > Calling, entitlement
+  ///    com.apple.developer.calling-app) → bấm số ở Danh bạ/Safari/… hệ thống chuyển `startCallHandle`.
+  ///    Đọc qua selector để vẫn biên dịch được với SDK cũ và không crash nếu thuộc tính không có.
+  ///  - INStartCallIntent (iOS 13+) / INStartAudioCallIntent cũ: danh bạ, lịch sử cuộc gọi, Siri.
   private static func phoneNumber(from activity: NSUserActivity) -> String? {
+    let sel = NSSelectorFromString("startCallHandle")
+    if activity.responds(to: sel), let handle = activity.perform(sel)?.takeUnretainedValue() as? String, !handle.isEmpty {
+      return handle
+    }
     let intent = activity.interaction?.intent
     if let call = intent as? INStartCallIntent { return call.contacts?.first?.personHandle?.value }
     if let call = intent as? INStartAudioCallIntent { return call.contacts?.first?.personHandle?.value }

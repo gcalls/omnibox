@@ -60,15 +60,27 @@ Workflow [`.github/workflows/shell-mobile.yml`](../.github/workflows/shell-mobil
 | docs, README… | không build |
 
 - Cấu hình: `main` → `bash 1config/cp.sh production`, `test` → `bash 1config/cp.sh internal`.
-- Tên file: `{branch}-{version}.{apk|ipa}`, ví dụ `main-1.0.apk`, `main-2.5.ipa`.
+- Tên file: `{branch}-{version}.{apk|ipa}`, ví dụ `main-1.0.1.apk`, `test-1.0.1.ipa`.
 - File được đăng lên gist chung "omnibox builds"; link tải nằm trong Summary của lần chạy workflow.
 - Có thể chạy tay: Actions → shell-mobile → Run workflow.
 - Secret cần có: `ONECONFIG_GPG_PASSPHRASE`, `GIST_TOKEN` (xem [docs/SECRETS.md](docs/SECRETS.md)).
 
-Nhánh `main` còn phát hành bằng GitHub Marketplace actions (không fastlane):
+Phát hành lên store bằng GitHub Marketplace actions và script API (không fastlane, không Firebase). Phiên bản lấy từ `"version"` trong `src/package.json` (tăng khi ra bản mới), số build là số lần chạy CI.
 
-- Android → Firebase App Distribution (`wzieba/Firebase-Distribution-Github-Action`) và Google Play (`r0adkll/upload-google-play`, bật bằng `PLAY_UPLOAD=true` trong `1config/android/app.env`).
-- iOS → TestFlight (`apple-actions/import-codesign-certs`, `apple-actions/upload-testflight-build`) khi `1config/ios/` có bộ ký do `1config/appconnect/asc-signing.sh` tạo.
+| Nhánh | Android | iOS |
+| --- | --- | --- |
+| `test` | Google Play `PLAY_TRACK` = `internal,beta`: tester nội bộ (internal) và tester ngoài (open testing) | TestFlight: tester nội bộ nhận ngay; nhóm "Omnibox External" sau Beta App Review (`scripts/ios_testflight_external.py`) |
+| `main` | Google Play production – phát hành đại trà sau khi Google duyệt | TestFlight + nộp App Store Review (`scripts/ios_submit.py`; bỏ qua kèm cảnh báo nếu phiên bản khác đang chờ duyệt) |
+
+Chỉ nền tảng có code thay đổi mới được build và phát hành: `src/android/**` → Android, `src/ios/**` → iOS, phần còn lại của `src/` (code dùng chung, kể cả `package.json`) hoặc `1config.tar.gpg` → cả hai.
+
+- versionCode Android = `major×10000000 + minor×100000 + patch×1000 + (số lần chạy CI % 1000)`, nên MINOR và PATCH phải < 100.
+- Khi khởi động, app hiện `Omnibox <version> (<build>)` dưới vòng xoay tải trang và gửi `appVersion`/`appBuild` vào WebView.
+- Yêu cầu cập nhật (`src/services/appUpdate.js`): store có bản mới đổi major/minor → bắt buộc (Android: Google Play In-App Updates toàn màn hình; iOS: hộp thoại chỉ có nút Cập nhật, mở App Store); chỉ đổi patch → nhắc, cho bỏ qua. Android chỉ hoạt động với bản cài từ Google Play.
+
+- Android dùng `r0adkll/upload-google-play` với `1config/android/play-service-account.json` (bật bằng `PLAY_UPLOAD=true`; thiếu file thì chỉ build + đăng gist).
+- iOS dùng `apple-actions/import-codesign-certs`, `apple-actions/upload-testflight-build` khi `1config/ios/` có bộ ký do `1config/appconnect/asc-signing.sh` tạo.
+- iOS 18.2+: Omnibox có thể làm app gọi mặc định (Settings → Apps → Default Apps → Calling) nhờ entitlement `com.apple.developer.calling-app`. App ID phải bật capability **Default Calling App** trên developer.apple.com (API không hỗ trợ) rồi chạy lại `asc-signing.sh`; profile chưa có thì `scripts/ios-build.sh` tự bỏ entitlement và cảnh báo.
 
 Quản lý từ terminal: `1config/chplay/` (Google Play Developer API), `1config/appconnect/` (App Store Connect API).
 

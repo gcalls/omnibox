@@ -20,15 +20,9 @@
 # (giữ đồng bộ với bảng MAP trong cp.sh / cp.ps1)
 # -------------------------------------------------------------------------------------
 /src/.env
-/src/android/app/google-services.json
 /src/android/app/*.keystore
 !/src/android/app/debug.keystore
 /src/android/keystore.properties
-/src/android/fastlane/.env
-/src/android/fastlane/secure/
-/src/ios/fastlane/.env
-/src/ios/fastlane/secure/
-/src/ios/Gcalls/GoogleService-Info.plist
 
 # -------------------------------------------------------------------------------------
 # Tài liệu nội bộ (không public)
@@ -58,8 +52,6 @@ keystore.properties
 *.mobileprovision
 *.provisionprofile
 *.certSigningRequest
-google-services.json
-GoogleService-Info.plist
 apikey.json
 *service-account*.json
 *-key.json
