@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 1.0.3
+
+- Lần đầu mở app sau khi cài: bắt buộc cuộn đọc hết Điều khoản dịch vụ (https://terms.gcalls.co/terms/terms-of-service, máy tiếng Việt dùng bản /vi/) mới hiện nút "Đồng ý"; đồng ý một lần (lưu `termsAcceptedVersion`) rồi vào callbox (`components/TermsGate.tsx`, bọc ở `index.js`).
+
 ### 1.0.2
 
 - Nhãn phiên bản luôn hiện ở góc dưới trái, đè lên callbox.

@@ -11,6 +11,22 @@ Quy ước:
 - Mỗi ngôn ngữ tối đa khoảng 450 ký tự (Google Play giới hạn 500, đã tính dòng phiên bản).
 - Merge vào `main` mà thiếu mục của phiên bản → CI dừng trước khi phát hành.
 
+## 1.0.3
+
+### vi
+
+- Lần đầu mở ứng dụng: đọc hết Điều khoản dịch vụ và bấm "Đồng ý" trước khi sử dụng.
+- Luôn hiển thị số phiên bản ở góc dưới bên trái màn hình.
+- iPhone (iOS 18.2 trở lên): có thể chọn Omnibox làm ứng dụng gọi mặc định.
+- Thông báo khi có phiên bản mới; bản nâng cấp lớn yêu cầu cập nhật để tiếp tục sử dụng.
+
+### en-US
+
+- First launch: read the entire Terms of Service and tap "Agree" before using the app.
+- The app version is always shown in the bottom-left corner.
+- iPhone (iOS 18.2 or later): Omnibox can be your default calling app.
+- Notifies you when a new version is available; major upgrades must be installed to continue.
+
 ## 1.0.2
 
 ### vi
