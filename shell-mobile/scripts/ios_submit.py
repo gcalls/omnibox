@@ -6,7 +6,8 @@
   3. Đồng bộ metadata (store_sync_ios.py --version) – phải thành công
   4. Gắn build vào phiên bản App Store đang soạn, rồi tạo + gửi yêu cầu duyệt
 Phát hành: releaseType AFTER_APPROVAL → Apple duyệt xong là tự lên App Store.
-Cách dùng:  python3 -I scripts/ios_submit.py --version 1.2.3 --build 42 [--timeout 2700]
+Cách dùng:  python3 -I scripts/ios_submit.py --version 1.2.3 --build 42|latest [--timeout 2700]
+CI: job "Nộp App Store Review" (ios_submit) chạy mỗi lần push main – đã nộp/đã phát hành thì bỏ qua.
 """
 import argparse, os, subprocess, sys, time
 
@@ -17,44 +18,50 @@ import store_sync_ios as s  # noqa: E402  (dùng chung token, call(), IOS_ENV)
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", required=True)
-    ap.add_argument("--build", required=True)
+    ap.add_argument("--build", required=True, help="số build, hoặc latest = build mới nhất của phiên bản")
     ap.add_argument("--timeout", type=int, default=2700)
     a = ap.parse_args()
     app_id = s.call("GET", f"/v1/apps?filter[bundleId]={s.IOS_ENV['APP_ID']}")["data"][0]["id"]
 
-    # 1. Chờ build xử lý xong
-    deadline, build = time.time() + a.timeout, None
-    while time.time() < deadline:
-        found = s.call("GET", f"/v1/builds?filter[app]={app_id}&filter[version]={a.build}"
-                              f"&filter[preReleaseVersion.version]={a.version}&limit=1")["data"]
-        state = found[0]["attributes"]["processingState"] if found else "CHƯA THẤY"
-        print(f"Build {a.version} ({a.build}): {state}", flush=True)
-        if state == "VALID":
-            build = found[0]; break
-        if state in ("FAILED", "INVALID"):
-            sys.exit(f"Apple từ chối build {a.version} ({a.build}): {state}")
-        time.sleep(60)
-    if not build:
-        sys.exit("Hết thời gian chờ Apple xử lý build")
-
-    # 2. Khai báo mã hoá
-    if build["attributes"].get("usesNonExemptEncryption") is None:
-        s.call("PATCH", f"/v1/builds/{build['id']}", {"data": {"type": "builds", "id": build["id"],
-               "attributes": {"usesNonExemptEncryption": False}}})
-
-    # Phiên bản khác (hoặc chính nó) đang chờ duyệt / chờ phát hành → App Store không cho tạo hay nộp
-    # phiên bản mới. Build vẫn có trên TestFlight; merge main lần sau (hoặc chạy lại job) sẽ nộp.
+    # 0. Trạng thái phiên bản trên App Store: đang chờ duyệt / chờ phát hành → chưa nộp được; đã phát hành → xong.
     IN_FLIGHT = ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "PENDING_APPLE_RELEASE",
                  "PROCESSING_FOR_APP_STORE", "READY_FOR_REVIEW", "WAITING_FOR_EXPORT_COMPLIANCE", "PENDING_CONTRACT", "ACCEPTED")
     allv = s.call("GET", f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=IOS&limit=50")["data"]
     flying = next((v for v in allv if v["attributes"]["appStoreState"] in IN_FLIGHT), None)
     if flying:
         fv, fs = flying["attributes"]["versionString"], flying["attributes"]["appStoreState"]
-        print(f"::warning::Phiên bản {fv} đang {fs} – chưa nộp {a.version} ({a.build}). Build đã có trên TestFlight; "
-              f"nộp lại sau khi {fv} được phát hành (PENDING_DEVELOPER_RELEASE = bấm phát hành trên App Store Connect).")
+        if fv == a.version:
+            print(f"✔ Phiên bản {a.version} đã nộp, đang {fs} – không cần nộp lại")
+        else:
+            print(f"::warning::Phiên bản {fv} đang {fs} – chưa nộp {a.version}. Build có trên TestFlight; "
+                  f"push main lần sau sẽ nộp khi {fv} xong (PENDING_DEVELOPER_RELEASE = bấm phát hành trên App Store Connect).")
         return
     if any(v["attributes"]["versionString"] == a.version and v["attributes"]["appStoreState"] == "READY_FOR_SALE" for v in allv):
-        sys.exit(f"Phiên bản {a.version} đã phát hành – tăng \"version\" trong shell-mobile/src/package.json")
+        print(f"✔ Phiên bản {a.version} đã phát hành trên App Store – không có gì để nộp (ra bản mới: tăng \"version\" trong src/package.json)")
+        return
+
+    # 1. Chờ build xử lý xong (--build latest: build mới nhất đã upload của phiên bản này)
+    deadline, build = time.time() + a.timeout, None
+    while time.time() < deadline:
+        q = (f"/v1/builds?filter[app]={app_id}&filter[preReleaseVersion.version]={a.version}&sort=-uploadedDate&limit=1"
+             if a.build == "latest" else
+             f"/v1/builds?filter[app]={app_id}&filter[version]={a.build}&filter[preReleaseVersion.version]={a.version}&limit=1")
+        found = s.call("GET", q)["data"]
+        state = found[0]["attributes"]["processingState"] if found else "CHƯA THẤY"
+        num = found[0]["attributes"]["version"] if found else a.build
+        print(f"Build {a.version} ({num}): {state}", flush=True)
+        if state == "VALID":
+            build = found[0]; a.build = num; break
+        if state in ("FAILED", "INVALID"):
+            sys.exit(f"Apple từ chối build {a.version} ({num}): {state}")
+        time.sleep(60)
+    if not build:
+        sys.exit(f"Không có build hợp lệ của {a.version} (hết thời gian chờ hoặc chưa upload)")
+
+    # 2. Khai báo mã hoá
+    if build["attributes"].get("usesNonExemptEncryption") is None:
+        s.call("PATCH", f"/v1/builds/{build['id']}", {"data": {"type": "builds", "id": build["id"],
+               "attributes": {"usesNonExemptEncryption": False}}})
 
     # 3. Metadata
     r = subprocess.run([sys.executable, "-I", os.path.join(s.ROOT, "scripts/store_sync_ios.py"), "--version", a.version])
