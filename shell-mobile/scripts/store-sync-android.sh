@@ -29,8 +29,15 @@ edit="$(call POST "$API/edits" '{}' | python3 -c 'import json,sys;print(json.loa
 trap '[ -n "${committed:-}" ] || curl -gsS -X DELETE -H "Authorization: Bearer $PLAY_TOKEN" "$API/edits/$edit" >/dev/null 2>&1' EXIT
 echo "Google Play $PLAY_PACKAGE_NAME – edit ${edit:0:8}…"
 
-call PATCH "$API/edits/$edit/details" "$(json contactEmail "$CONTACT_EMAIL" contactWebsite "$CONTACT_WEBSITE")" >/dev/null
-echo "  ✔ email liên hệ $CONTACT_EMAIL, website $CONTACT_WEBSITE"
+# Thông tin liên hệ: chỉ gửi khi khác bản trên Play – sửa mục này cần quyền riêng; gửi lại giá trị cũ cũng làm
+# commit bị từ chối ("The caller does not have permission") nếu service account không có quyền đó.
+cur="$(call GET "$API/edits/$edit/details" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("contactEmail",""), d.get("contactWebsite",""))')"
+if [ "$cur" = "$CONTACT_EMAIL $CONTACT_WEBSITE" ]; then
+  echo "  = email liên hệ $CONTACT_EMAIL, website $CONTACT_WEBSITE (giữ nguyên)"
+else
+  call PATCH "$API/edits/$edit/details" "$(json contactEmail "$CONTACT_EMAIL" contactWebsite "$CONTACT_WEBSITE")" >/dev/null
+  echo "  ✔ email liên hệ $CONTACT_EMAIL, website $CONTACT_WEBSITE (trên Play: $cur) – nếu commit bị từ chối, cấp thêm quyền cho play-publisher hoặc sửa tay trên Play Console"
+fi
 
 for dir in "$STORE"/android/listings/*/; do
   lang="$(basename "$dir")"
@@ -40,6 +47,10 @@ for dir in "$STORE"/android/listings/*/; do
   for kind in icon:icon.png featureGraphic:feature_graphic.png; do
     type="${kind%%:*}"; file="$STORE/android/images/${kind#*:}"
     [ -f "$file" ] || continue
+    # Chỉ thay ảnh khi khác bản trên Play (so sha256) – thay ảnh của app đã phát hành cần quyền riêng,
+    # upload lại ảnh y hệt cũng làm commit bị từ chối nếu service account thiếu quyền đó.
+    remote_sha="$(call GET "$API/edits/$edit/listings/$lang/$type" | python3 -c 'import json,sys;i=json.load(sys.stdin).get("images",[]);print(i[0].get("sha256","") if i else "")')"
+    if [ "$remote_sha" = "$(sha256sum "$file" | cut -d' ' -f1)" ]; then echo "    = $type giữ nguyên"; continue; fi
     call DELETE "$API/edits/$edit/listings/$lang/$type" >/dev/null || true
     curl -gsS -X POST -H "Authorization: Bearer $PLAY_TOKEN" -H "Content-Type: image/png" --data-binary "@$file" \
       "$UPLOAD/edits/$edit/listings/$lang/$type?uploadType=media" | grep -q '"image"' && echo "    ✔ $type" || echo "    ✖ $type" >&2

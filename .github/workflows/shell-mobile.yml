@@ -361,6 +361,10 @@ jobs:
         if: github.ref_name == 'test' && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
         run: python3 -I scripts/ios_testflight_external.py --version "$APP_VERSION" --build "$BUILD_NUMBER"
 
+      - name: Pillow (store_sync_ios.py xử lý screenshot khi nộp review)
+        if: github.ref_name == 'main' && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
+        run: python3 -m pip install --quiet --user --break-system-packages pillow || python3 -m pip install --quiet pillow
+
       - name: Nộp App Store Review (${{ env.APP_VERSION }})
         if: github.ref_name == 'main' && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
         run: python3 -I scripts/ios_submit.py --version "$APP_VERSION" --build "$BUILD_NUMBER"
