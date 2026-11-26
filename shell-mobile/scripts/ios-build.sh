@@ -83,7 +83,7 @@ if ! build_once 2>&1 | tee "$log"; then
   if [ "$SIGNED" = 1 ] && grep -q "calling-app" "$log"; then
     echo "::warning::Profile \"$profile\" không cho phép com.apple.developer.calling-app – build lại không có entitlement Default Calling App"
     ent_src="$IOS/$(setting CODE_SIGN_ENTITLEMENTS)"; ent_tmp="$IOS/build/ci.entitlements"
-    cp "$ent_src" "$ent_tmp"; plutil -remove com.apple.developer.calling-app "$ent_tmp"
+    cp "$ent_src" "$ent_tmp"; /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.calling-app" "$ent_tmp"
     build_once "CODE_SIGN_ENTITLEMENTS=$ent_tmp"
   else
     exit 1
