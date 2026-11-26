@@ -16,12 +16,14 @@ Quy ước:
 ### vi
 
 - Luôn hiển thị số phiên bản ở góc dưới bên trái màn hình.
+- iPhone (iOS 18.2 trở lên): có thể chọn Omnibox làm ứng dụng gọi mặc định trong Cài đặt → Ứng dụng → Ứng dụng mặc định → Gọi.
 - Thông báo khi có phiên bản mới; bản nâng cấp lớn yêu cầu cập nhật để tiếp tục sử dụng.
 - Gỡ bỏ thành phần không cần thiết, ứng dụng gọn nhẹ hơn.
 
 ### en-US
 
 - The app version is always shown in the bottom-left corner.
+- iPhone (iOS 18.2 or later): Omnibox can be your default calling app in Settings → Apps → Default Apps → Calling.
 - Notifies you when a new version is available; major upgrades must be installed to continue.
 - Removed unused components for a lighter app.
 
