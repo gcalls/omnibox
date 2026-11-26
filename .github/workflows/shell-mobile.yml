@@ -41,6 +41,8 @@ on:
     branches: [main, test, dev]
     paths:
       - "shell-mobile/**"
+      - ".github/workflows/shell-mobile.yml"   # sửa CI cũng phải chạy trên test để cổng main nhận commit
+      - ".github/scripts/**"
   workflow_dispatch:
     inputs:
       platform:
