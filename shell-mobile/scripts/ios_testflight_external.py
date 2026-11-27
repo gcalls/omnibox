@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ios_testflight_external.py – phát build TestFlight cho tester ngoài (CI: nhánh test), không fastlane.
+"""ios_testflight_external.py – phát build TestFlight cho tester ngoài (CI: nhánh main; nhánh test dùng --internal-only), không fastlane.
 
   1. Chờ build <version> (<build>) xử lý xong trên App Store Connect
   2. Khai báo không dùng mã hoá ngoài miễn trừ (khớp ITSAppUsesNonExemptEncryption = NO)
@@ -20,6 +20,8 @@ def main():
     ap.add_argument("--version", required=True)
     ap.add_argument("--build", required=True)
     ap.add_argument("--timeout", type=int, default=2700)
+    ap.add_argument("--internal-only", action="store_true",
+                    help="nhánh test: chỉ tester nội bộ (không gắn nhóm ngoài, không Beta App Review) + in bảng link")
     a = ap.parse_args()
     app_id = s.call("GET", f"/v1/apps?filter[bundleId]={s.IOS_ENV['APP_ID']}")["data"][0]["id"]
     group_name = s.IOS_ENV.get("TESTFLIGHT_EXTERNAL_GROUP", "Omnibox External")
@@ -64,8 +66,12 @@ def main():
         except RuntimeError as e:
             print(f"  (bỏ qua What to Test {loc}: {e})")
 
-    # 4. Nhóm tester ngoài
+    # 4. Nhóm tester ngoài (nhánh test: bỏ qua – tester nội bộ nhận mọi build, không review)
     groups = s.call("GET", f"/v1/apps/{app_id}/betaGroups?limit=50")["data"]
+    if a.internal_only:
+        print("Nhánh test: chỉ tester nội bộ TestFlight (không review) – không gắn nhóm ngoài, không gửi Beta App Review")
+        summary(app_id, bid, a, None, groups, "")
+        return
     g = next((x for x in groups if x["attributes"]["name"] == group_name and not x["attributes"].get("isInternalGroup")), None)
     if not g:
         sys.exit(f"Không có nhóm tester ngoài \"{group_name}\" trên App Store Connect")
@@ -98,14 +104,15 @@ def summary(app_id, bid, a, ext_group, groups, review_note):
         if at.get("isInternalGroup"):
             rows.append((f"TestFlight nội bộ – {at['name']}", f"{det.get('internalBuildState')}", f"{n} tester",
                          "Mời qua email; cài bằng app TestFlight (https://apps.apple.com/app/testflight/id899247664)"))
-        elif g["id"] == ext_group["id"]:
+        elif ext_group and g["id"] == ext_group["id"]:
             link = at.get("publicLink") if at.get("publicLinkEnabled") else "_link công khai đang tắt_"
             rows.append((f"TestFlight ngoài – {at['name']}", f"{det.get('externalBuildState')} · review: {review}",
                          f"{n} tester + link công khai", link))
     lines = [f"### iOS – link cho tester (Omnibox {a.version} build {a.build})", "",
              "| Kênh | Trạng thái build | Tester | Link |", "| --- | --- | --- | --- |"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
-    lines += ["", "Tester ngoài nhận bản sau khi Apple duyệt Beta App Review (mỗi phiên bản chỉ một build chờ duyệt một lúc).", ""]
+    lines += ["", ("Tester ngoài nhận bản sau khi Apple duyệt Beta App Review (mỗi phiên bản chỉ một build chờ duyệt một lúc)."
+                   if ext_group else "Nhánh test: chỉ tester nội bộ (không review). Tester bên ngoài nhận bản khi merge vào main."), ""]
     text = "\n".join(lines)
     print(text)
     if os.environ.get("GITHUB_STEP_SUMMARY"):

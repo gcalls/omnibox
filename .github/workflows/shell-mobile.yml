@@ -15,11 +15,14 @@
 #  Cấu hình: main → `1config/cp.sh production`, test/khác → `1config/cp.sh internal`.
 #  Phát hành (Marketplace actions + script API, đọc credential trực tiếp từ 1config đã giải mã):
 #    dev    chỉ build + đăng gist (APK, IPA App Store, IPA Ad Hoc + link cài itms-services) – không lên store
-#    test   Android → Google Play PLAY_TRACK = internal, alpha (closed), beta (open) + Internal App Sharing (link trong Summary)
-#           iOS     → TestFlight: tester nội bộ nhận ngay; nhóm tester ngoài TESTFLIGHT_EXTERNAL_GROUP (kèm link công khai)
-#                     sau Beta App Review; Ad Hoc (iPhone đã đăng ký UDID) trên gist như dev
-#    main   Android → Google Play production (phát hành đại trà sau khi Google duyệt)
-#           iOS     → TestFlight + nộp App Store Review (bỏ qua kèm cảnh báo nếu phiên bản khác đang chờ duyệt)
+#    test   tester NỘI BỘ, KHÔNG review:
+#           Android → Google Play internal (PLAY_TRACK_TEST) + Internal App Sharing (link trong Summary)
+#           iOS     → TestFlight nhóm nội bộ (nhận mọi build); Ad Hoc (iPhone đã đăng ký UDID) trên gist như dev
+#    main   tester BÊN NGOÀI, tự gửi review:
+#           Android → Google Play closed (alpha) + open (beta) testing (PLAY_TRACK_MAIN) – Google duyệt
+#           iOS     → TestFlight nhóm ngoài TESTFLIGHT_EXTERNAL_GROUP + link công khai – Beta App Review;
+#                     chuẩn bị phiên bản App Store (metadata, What's New, gắn build) nhưng KHÔNG nộp
+#    Phát hành công khai (Google Play production, App Store): chủ dự án làm trên Play Console / App Store Connect.
 #    shell-mobile/store.sha256 thay đổi (nội dung 1config/store trong bundle mã hoá) → main: đồng bộ trang
 #           store (scripts/store-sync-android.sh, scripts/store_sync_ios.py) mà không build lại.
 #  Không dùng Firebase. Google Play cần 1config/android/play-service-account.json; thiếu file thì Android chỉ
@@ -145,7 +148,7 @@ jobs:
       - name: Ghi chú phát hành ${{ env.APP_VERSION }}
         run: python3 -I scripts/release-notes.py --version "$APP_VERSION" ${{ github.ref_name == 'main' && '--strict' || '' }}
 
-      # Biến không bí mật từ 1config/android/app.env (APP_ID, PLAY_TRACK, PLAY_UPLOAD)
+      # Biến không bí mật từ 1config/android/app.env (APP_ID, PLAY_TRACK_TEST, PLAY_TRACK_MAIN, PLAY_UPLOAD)
       - name: Đọc 1config/android/app.env
         id: cfg
         run: |
@@ -153,8 +156,12 @@ jobs:
             [[ "$k" =~ ^[A-Z_]+$ ]] && echo "$(echo "$k" | tr 'A-Z' 'a-z')=$v" >> "$GITHUB_OUTPUT"
           done < <(grep -E '^[A-Z_]+=' 1config/android/app.env)
           [ -f 1config/android/play-service-account.json ] && echo "has_play=true" >> "$GITHUB_OUTPUT" || echo "has_play=false" >> "$GITHUB_OUTPUT"
-          # main → production; test → PLAY_TRACK (danh sách track, vd. internal,beta). Trạng thái: draft cho tới khi app được phát hành lần đầu.
-          [ "$GITHUB_REF_NAME" = main ] && echo "track=production" >> "$GITHUB_OUTPUT" || echo "track=$(sed -n 's/^PLAY_TRACK=//p' 1config/android/app.env)" >> "$GITHUB_OUTPUT"
+          # test → PLAY_TRACK_TEST (internal, không review); main → PLAY_TRACK_MAIN (alpha,beta – Google duyệt).
+          # Production không do CI đẩy: phát hành công khai làm trên Play Console.
+          if [ "$GITHUB_REF_NAME" = main ]; then t="$(sed -n 's/^PLAY_TRACK_MAIN=//p' 1config/android/app.env)"; t="${t:-alpha,beta}"
+          else t="$(sed -n 's/^PLAY_TRACK_TEST=//p' 1config/android/app.env)"; t="${t:-internal}"; fi
+          case ",$t," in *,production,*) echo "::error::production không được đẩy từ CI"; exit 1 ;; esac
+          echo "track=$t" >> "$GITHUB_OUTPUT"
           if [ -f 1config/android/play-service-account.json ]; then
             st="$(bash scripts/play-release-status.sh)"   # lỗi API → bước này lỗi, không upload nhầm dạng draft
             echo "release_status=$st" >> "$GITHUB_OUTPUT"
@@ -190,7 +197,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # ---- test: Google Play PLAY_TRACK (tester nội bộ + ngoài);  main: Google Play production (Google duyệt) --
+      # ---- test: internal (không review) + Internal App Sharing;  main: alpha + beta (tester ngoài, Google duyệt) --
       - name: Google Play (AAB ${{ env.APP_VERSION }} / ${{ env.VERSION_CODE }} → ${{ steps.cfg.outputs.track }}, ${{ steps.cfg.outputs.release_status }})
         if: env.STORE_BRANCH == 'true' && steps.cfg.outputs.has_play == 'true' && steps.cfg.outputs.play_upload == 'true'
         uses: r0adkll/upload-google-play@v1
@@ -359,9 +366,10 @@ jobs:
           api-key-id: ${{ steps.sign.outputs.asc_key_id }}
           api-private-key: ${{ steps.sign.outputs.asc_key }}
 
-      - name: TestFlight cho tester ngoài (Beta App Review)
-        if: github.ref_name == 'test' && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
-        run: python3 -I scripts/ios_testflight_external.py --version "$APP_VERSION" --build "$BUILD_NUMBER"
+      # test: chỉ tester nội bộ (không review) + bảng link;  main: nhóm ngoài + link công khai, gửi Beta App Review
+      - name: TestFlight ${{ github.ref_name == 'main' && 'tester ngoài (Beta App Review)' || 'tester nội bộ (không review)' }}
+        if: env.STORE_BRANCH == 'true' && steps.sign.outputs.signed == 'true' && steps.sign.outputs.has_app == 'true'
+        run: python3 -I scripts/ios_testflight_external.py --version "$APP_VERSION" --build "$BUILD_NUMBER" ${{ github.ref_name == 'test' && '--internal-only' || '' }}
 
       - name: Dọn cấu hình đã giải mã
         if: always()
@@ -369,10 +377,10 @@ jobs:
           [ -f 1config/cp.sh ] && bash 1config/cp.sh --clean || true
           rm -rf 1config
 
-  # Nộp App Store Review (main): tách khỏi job build iOS để nộp lại được mà không build lại – mỗi lần push main,
-  # nếu phiên bản trong package.json chưa nộp/chưa phát hành thì nộp build hợp lệ mới nhất của phiên bản đó.
+  # Chuẩn bị phiên bản App Store (main, KHÔNG nộp): đồng bộ metadata + What's New, gắn build hợp lệ mới nhất của
+  # phiên bản trong package.json. Nộp duyệt / phát hành công khai: chủ dự án làm trên App Store Connect.
   ios_submit:
-    name: Nộp App Store Review
+    name: Chuẩn bị App Store (không nộp)
     needs: [changes, ios]
     if: ${{ !cancelled() && github.ref_name == 'main' && needs.changes.result == 'success' && needs.ios.result != 'failure' }}
     runs-on: ubuntu-latest
@@ -399,8 +407,8 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow
           "$RUNNER_TEMP/venv/bin/python" -I -c 'import PIL; print("Pillow", PIL.__version__)'
-      - name: Nộp App Store Review ${{ env.APP_VERSION }} (build mới nhất)
-        run: '"$RUNNER_TEMP/venv/bin/python" -I scripts/ios_submit.py --version "$APP_VERSION" --build latest'
+      - name: Chuẩn bị App Store ${{ env.APP_VERSION }} (build mới nhất, không nộp)
+        run: '"$RUNNER_TEMP/venv/bin/python" -I scripts/ios_submit.py --version "$APP_VERSION" --build latest --no-submit'
       - name: Dọn cấu hình đã giải mã
         if: always()
         run: |

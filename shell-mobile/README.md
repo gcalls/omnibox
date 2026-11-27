@@ -70,10 +70,11 @@ Phát hành lên store bằng GitHub Marketplace actions và script API (không 
 | Nhánh | Android | iOS |
 | --- | --- | --- |
 | `dev` | Chỉ build, đăng APK lên gist (không lên store) | Đăng IPA lên gist, kèm bản **Ad Hoc** và link cài `itms-services://…` cho iPhone đã đăng ký UDID |
-| `test` | Google Play `PLAY_TRACK` = `internal,alpha,beta` (internal testing, closed testing, open testing) + Internal App Sharing (link cài ngay trong Summary của lần chạy, `scripts/play-internal-sharing.sh`) | TestFlight: tester nội bộ nhận ngay; nhóm "Omnibox External" (gồm link công khai) sau Beta App Review (`scripts/ios_testflight_external.py`) |
-| `main` | Google Play production – phát hành đại trà sau khi Google duyệt | TestFlight + nộp App Store Review (`scripts/ios_submit.py`; bỏ qua kèm cảnh báo nếu phiên bản khác đang chờ duyệt) |
+| `test` | **Tester nội bộ, không review:** Google Play internal testing (`PLAY_TRACK_TEST`) + Internal App Sharing (link cài ngay trong Summary) | **Tester nội bộ, không review:** TestFlight nhóm "Omnibox Internal" (người dùng App Store Connect) + bảng link trong Summary |
+| `main` | **Tester bên ngoài, tự gửi Google duyệt:** closed testing (alpha) + open testing (beta) (`PLAY_TRACK_MAIN`) | **Tester bên ngoài, tự gửi Beta App Review:** TestFlight nhóm "Omnibox External" + link công khai; chuẩn bị sẵn phiên bản App Store (metadata, What's New, gắn build) nhưng **không nộp** |
+| Phát hành công khai | Chủ dự án làm trên **Play Console** (promote bản từ testing lên production) | Chủ dự án bấm **Add for Review** / **Release** trên **App Store Connect** |
 
-iOS chỉ nộp được một phiên bản khi phiên bản trước đã xong duyệt. Job **Nộp App Store Review** chạy ở mỗi lần push `main`: phiên bản trong `package.json` chưa nộp thì nộp build hợp lệ mới nhất của nó; đang có phiên bản khác chờ duyệt thì bỏ qua kèm cảnh báo – push `main` lần sau (sau khi bản trước được duyệt/phát hành) sẽ nộp.
+Job **Chuẩn bị App Store (không nộp)** chạy ở mỗi lần push `main`: đồng bộ metadata và What's New, gắn build hợp lệ mới nhất của phiên bản trong `package.json` vào phiên bản App Store đang soạn. Khi có phiên bản khác đang chờ duyệt, job bỏ qua kèm cảnh báo. CI không bao giờ tự nộp App Store hay đẩy Google Play production.
 
 Luồng chuẩn: `dev` → merge (fast-forward) vào `test` → chờ CI xanh → fast-forward `test` → `main`. Job đầu tiên trên `main` (**cổng main**) dừng nếu commit chưa chạy thành công trên `test`. Summary của mỗi lần chạy `test` có bảng **link cho tester** cả Android (Internal testing – cần `PLAY_INTERNAL_TEST_URL` trong `1config/android/app.env`, Internal App Sharing, Closed/Open testing) và iOS (TestFlight nội bộ, link công khai của nhóm ngoài).
 

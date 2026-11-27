@@ -2,6 +2,7 @@
 # =====================================================================================
 #  play-tester-summary.sh – ghi vào Summary của lần chạy (GITHUB_STEP_SUMMARY) bảng link mời tester Android:
 #  trạng thái từng track (versionCode, status) + link tham gia.
+#    (test: internal + Internal App Sharing, không review; main: alpha + beta, Google duyệt; production làm tay)
 #    internal  → PLAY_INTERNAL_TEST_URL trong 1config/android/app.env (Play Console → Internal testing →
 #                Testers → "Copy link"; API không trả link này)
 #    alpha     → https://play.google.com/apps/testing/<package> (tester phải có trong danh sách Closed testing)
@@ -27,11 +28,11 @@ for t in json.loads(os.environ["TRACKS"]).get("tracks", []):
     rel[t["track"]] = f'{r.get("name", "–")} · {",".join(r.get("versionCodes", []))} · {r.get("status", "–")}'
 internal = os.environ["INTERNAL_URL"] or "_chưa khai `PLAY_INTERNAL_TEST_URL` (Play Console → Internal testing → Testers → Copy link)_"
 rows = [
-    ("Internal testing", rel.get("internal", "–"), internal, "Có ngay cho email trong danh sách Internal testing"),
-    ("Internal App Sharing", "AAB vừa build", os.environ["SHARING_URL"] or "_xem bước Internal App Sharing_", "Cài ngay, không review; máy phải bật Internal app sharing trong Play Store"),
-    ("Closed testing (alpha)", rel.get("alpha", "–"), testing, "Tester trong danh sách Closed testing; Google duyệt nhanh"),
-    ("Open testing (beta)", rel.get("beta", "–"), testing, "Ai cũng tham gia được **sau khi Google duyệt**"),
-    ("Production", rel.get("production", "–"), f"https://play.google.com/store/apps/details?id={pkg}", "Bản công khai"),
+    ("Internal testing", rel.get("internal", "–"), internal, "Nhánh test · không review · có ngay cho email trong danh sách Internal testing"),
+    ("Internal App Sharing", "AAB vừa build", os.environ["SHARING_URL"] or "_xem bước Internal App Sharing_", "Nhánh test · không review · cài ngay; máy phải bật Internal app sharing trong Play Store"),
+    ("Closed testing (alpha)", rel.get("alpha", "–"), testing, "Nhánh main · Google duyệt · tester trong danh sách Closed testing"),
+    ("Open testing (beta)", rel.get("beta", "–"), testing, "Nhánh main · Google duyệt · ai cũng tham gia được sau khi duyệt"),
+    ("Production", rel.get("production", "–"), f"https://play.google.com/store/apps/details?id={pkg}", "Không do CI đẩy – phát hành công khai trên Play Console"),
 ]
 print("### Android – link cho tester\n")
 print("| Kênh | Bản trên Play (tên · versionCode · trạng thái) | Link | Ghi chú |\n| --- | --- | --- | --- |")

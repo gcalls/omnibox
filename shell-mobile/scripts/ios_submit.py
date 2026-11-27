@@ -5,7 +5,8 @@
   2. Khai báo build không dùng mã hoá ngoài miễn trừ (khớp ITSAppUsesNonExemptEncryption = NO)
   3. Đồng bộ metadata (store_sync_ios.py --version) – phải thành công
   4. Gắn build vào phiên bản App Store đang soạn, rồi tạo + gửi yêu cầu duyệt
-Phát hành: releaseType AFTER_APPROVAL → Apple duyệt xong là tự lên App Store.
+Phát hành: theo releaseType trên App Store Connect (MANUAL: bấm Release sau khi Apple duyệt).
+--no-submit (CI nhánh main): chỉ đồng bộ metadata + gắn build, KHÔNG nộp – nộp/phát hành công khai làm trên App Store Connect.
 Cách dùng:  python3 -I scripts/ios_submit.py --version 1.2.3 --build 42|latest [--timeout 2700]
 CI: job "Nộp App Store Review" (ios_submit) chạy mỗi lần push main – đã nộp/đã phát hành thì bỏ qua.
 """
@@ -20,6 +21,7 @@ def main():
     ap.add_argument("--version", required=True)
     ap.add_argument("--build", required=True, help="số build, hoặc latest = build mới nhất của phiên bản")
     ap.add_argument("--timeout", type=int, default=2700)
+    ap.add_argument("--no-submit", action="store_true", help="chỉ chuẩn bị phiên bản (metadata + build), không nộp duyệt")
     a = ap.parse_args()
     app_id = s.call("GET", f"/v1/apps?filter[bundleId]={s.IOS_ENV['APP_ID']}")["data"][0]["id"]
 
@@ -76,6 +78,10 @@ def main():
     ver_id = vers[0]["id"]
     s.call("PATCH", f"/v1/appStoreVersions/{ver_id}/relationships/build", {"data": {"type": "builds", "id": build["id"]}})
     print(f"Đã gắn build {a.build} vào phiên bản {a.version}")
+    if a.no_submit:
+        print(f"✔ Phiên bản {a.version} đã sẵn sàng trên App Store Connect (build {a.build}, What's New, metadata) – "
+              "chưa nộp: bấm \"Add for Review\" trên App Store Connect khi muốn phát hành công khai")
+        return
 
     subs = s.call("GET", f"/v1/reviewSubmissions?filter[app]={app_id}&filter[platform]=IOS&filter[state]=READY_FOR_REVIEW")["data"]
     sub_id = subs[0]["id"] if subs else s.call("POST", "/v1/reviewSubmissions", {"data": {"type": "reviewSubmissions",
@@ -89,7 +95,7 @@ def main():
             raise
     s.call("PATCH", f"/v1/reviewSubmissions/{sub_id}", {"data": {"type": "reviewSubmissions", "id": sub_id,
            "attributes": {"submitted": True}}})
-    print(f"✔ Đã nộp App Store Review: {a.version} ({a.build}) – tự phát hành sau khi Apple duyệt")
+    print(f"✔ Đã nộp App Store Review: {a.version} ({a.build}) – phát hành theo releaseType sau khi Apple duyệt")
 
 
 if __name__ == "__main__":
