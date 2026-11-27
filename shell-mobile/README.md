@@ -73,6 +73,8 @@ Phát hành lên store bằng GitHub Marketplace actions và script API (không 
 | `test` | Google Play `PLAY_TRACK` = `internal,alpha,beta` (internal testing, closed testing, open testing) + Internal App Sharing (link cài ngay trong Summary của lần chạy, `scripts/play-internal-sharing.sh`) | TestFlight: tester nội bộ nhận ngay; nhóm "Omnibox External" (gồm link công khai) sau Beta App Review (`scripts/ios_testflight_external.py`) |
 | `main` | Google Play production – phát hành đại trà sau khi Google duyệt | TestFlight + nộp App Store Review (`scripts/ios_submit.py`; bỏ qua kèm cảnh báo nếu phiên bản khác đang chờ duyệt) |
 
+iOS chỉ nộp được một phiên bản khi phiên bản trước đã xong duyệt. Job **Nộp App Store Review** chạy ở mỗi lần push `main`: phiên bản trong `package.json` chưa nộp thì nộp build hợp lệ mới nhất của nó; đang có phiên bản khác chờ duyệt thì bỏ qua kèm cảnh báo – push `main` lần sau (sau khi bản trước được duyệt/phát hành) sẽ nộp.
+
 Luồng chuẩn: `dev` → merge (fast-forward) vào `test` → chờ CI xanh → fast-forward `test` → `main`. Job đầu tiên trên `main` (**cổng main**) dừng nếu commit chưa chạy thành công trên `test`. Summary của mỗi lần chạy `test` có bảng **link cho tester** cả Android (Internal testing – cần `PLAY_INTERNAL_TEST_URL` trong `1config/android/app.env`, Internal App Sharing, Closed/Open testing) và iOS (TestFlight nội bộ, link công khai của nhóm ngoài).
 
 Chỉ nền tảng có code thay đổi mới được build và phát hành: `src/android/**` → Android, `src/ios/**` → iOS, phần còn lại của `src/` (code dùng chung, kể cả `package.json`) hoặc `1config.tar.gpg` → cả hai.
